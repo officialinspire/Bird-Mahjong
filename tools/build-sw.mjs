@@ -39,6 +39,10 @@ export function precacheList() {
     ...list("icons", ".png"),
     ...list("assets/tiles-sm", ".webp"),
     ...list("assets/tiles-md", ".webp"),
+    // INSPIRE branding: the logo (start screen, game footer) and the intro
+    // video (js/ui/intro.js), both copied from officialinspire/DEJA-VU-MEMORY-GAME.
+    "logo.png",
+    "inspiresoftwareintro.mp4",
     // Music (root MP3s, streamed by js/ui/music.js).
     ...fs.readdirSync(ROOT).filter((f) => f.endsWith(".mp3")).sort(),
     // Optional recorded audio (see AUDIO_FILES in js/config.js).

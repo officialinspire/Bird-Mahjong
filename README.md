@@ -16,6 +16,7 @@ Every generated board has a verified solution.
 | Action | Touch / mouse | Keyboard |
 |--------|---------------|----------|
 | Start | Tap or click anywhere on the start screen | Any key |
+| Skip the intro | **Skip** button | Esc, Enter or Space |
 | Select a tile | Tap or click a **free** tile (bright, not striped) | Tab to the board, then arrows to move, then Enter or Space |
 | Take a pair | Select its twin (exactly the same bird) | Same |
 | Deselect | Tap the selected tile again | Enter or Space on it again |
@@ -54,8 +55,11 @@ a ✓; hinted tiles have a dashed ring and a "?".
   time the app is opened fresh.
 - **iOS has no install prompt.** On iPhone and iPad, use Share → *Add to Home
   Screen*.
-- **No intro video or logo.** The Sudoku / Deja Vu intro video and INSPIRE logo
-  aren't part of this repo, so they aren't shown.
+- **The intro needs H.264 video.** `inspiresoftwareintro.mp4` is H.264/AAC,
+  which Chrome, Edge, Safari and Firefox play on desktop, Android and iOS.
+  Browsers without H.264 (some Linux Chromium builds, for example) skip it
+  straight to the menu. The intro also plays with reduced motion, since it's
+  short and skippable.
 - **One game per tab.** Playing in two tabs at once saves over the same slot;
   the most recent change wins.
 - **Audio waits for a tap.** Browsers only allow sound after a gesture, so
@@ -74,7 +78,7 @@ a ✓; hinted tiles have a dashed ring and a "?".
   - Pause and New Game wait out the 1.5 s board-clear moment. The win is
     recorded as soon as the board is cleared, even if the page is closed
     during that moment.
-- **First visit downloads ~6.8 MB.** That's for offline play, and it's mostly
+- **First visit downloads ~7.1 MB.** That's for offline play, and it's mostly
   the two music tracks.
 - **Automated tests run in Chromium.** Firefox and Safari (including iOS) are
   expected to work, since the game uses standard web APIs only, but they
@@ -122,6 +126,8 @@ tools/verify-clearing.mjs  pair clearing: lift/fade, sparkle, fast taps, mid-ani
 tools/verify-offline.mjs   offline, install and update checks (Playwright)
 tools/verify-music.mjs     recorded music transitions with the real MP3s (Playwright)
 tools/verify-calls.mjs     bird calls on cleared pairs with the real clips (Playwright)
+tools/verify-intro.mjs     INSPIRE intro flow, skip, session replay, branding layout, offline (Playwright)
+tools/fixtures/            intro-test.webm: a 2.5 s VP9 cut of the intro for Chromium tests
 tools/make_bird_calls.py   rebuilds the bird-call clips in assets/audio/ (see CREDITS.md)
 tools/build-sw.mjs         writes sw.js's precache list + content-hash VERSION
 tools/make_icons.py        builds icons/ from the cropped tiles
@@ -169,7 +175,7 @@ tile, and the contact sheet labels each crop with its number, name and ID.
 
 The flow is the same as our Sudoku and Deja Vu games:
 
-**Start** (touch, click or any key) → **Main menu** → **New Game** →
+**Start** (touch, click or any key) → **INSPIRE intro** → **Main menu** → **New Game** →
 **Difficulty** (Easy · Meadow, Medium · Twin Groves, Hard · Old Growth) →
 **Game** → **Results**. **How to Play** and
 **Settings** open from the menu; each has a ← Menu button.
@@ -186,8 +192,26 @@ The flow is the same as our Sudoku and Deja Vu games:
   Full), Music and Sound effects (each on/off + volume), floating background birds, short bird-name
   labels on tiles, and the streak bonus.
 - **Continue** resumes the autosaved board; see *Saving* below.
-- The Sudoku and Deja Vu intro video and INSPIRE logo aren't used here, because
-  this repo doesn't include them. Add the files to reuse the intro step.
+- **INSPIRE branding.** `logo.png` and `inspiresoftwareintro.mp4` are copied
+  unchanged from
+  [officialinspire/DEJA-VU-MEMORY-GAME](https://github.com/officialinspire/DEJA-VU-MEMORY-GAME).
+  The logo sits at the foot of the start screen ("by INSPIRE") and in a
+  compact one-line footer under the game. The footer is 20px tall, so the
+  board and every control stay on screen on 320px-wide phones.
+- **The intro** (`js/ui/intro.js`) plays the 6-second INSPIRE video full-screen
+  on black, then goes to the menu.
+  - **Once per browser session:** a reload skips it; a new tab or window plays
+    it again.
+  - **Skip:** a visible **Skip** button, or Esc, Enter or Space. The tap or key
+    that started the game can't also skip it: for its first 0.45 s the intro
+    ignores Skip and held-key repeats.
+  - **Never traps you:** it goes to the menu when the video ends, and also on
+    a playback error (missing file or unsupported format), a refused
+    `play()`, nothing playing within 4 s, a hidden tab, or 15 s at most.
+  - **Music:** no background music plays during the intro, and Gentle Canopy
+    fades in on the menu after it. The video's own sound follows the Music
+    setting: muted when Music is off, otherwise at the Music volume. If
+    autoplay with sound is refused, it plays muted.
 
 **Palette:** warm ivory `#fbf6e8` backgrounds, leaf green `#3d7a35` for primary
 actions, sky blue `#4f97c7` / `#235f87` for secondary accents, and cardinal red
@@ -766,7 +790,7 @@ npm run test:save
 `/Bird-Mahjong/`, the same path GitHub Pages uses, and checks:
 
 - **First load:** the worker takes control, and one versioned cache holds all
-  77 precached files. There's no reload or update banner on first install.
+  80 precached files. There's no reload or update banner on first install.
 - **Install:** in a regular Chromium profile, the manifest parses without
   errors, `start_url` and `scope` resolve to `/Bird-Mahjong/`, and Chromium
   reports **no installability errors**. Chromium offers installation itself,
@@ -834,6 +858,39 @@ Chromium and records every `<audio>` element and `play()` call. It checks:
   every effect gone.
 - **Reduced motion:** the pair disappears at once with no sparkle or float. A
   whole board at a quick human pace loses no taps.
+
+## Checking the intro and branding
+
+`tools/verify-intro.mjs` (`npm run test:intro`) covers the INSPIRE intro and
+logo. Playwright's Chromium can't decode H.264, so for playback checks the MP4
+is served as `tools/fixtures/intro-test.webm`, a short VP9/Opus cut of the same
+video. Left unrouted, the real MP4 tests the failure path. Checks:
+
+- **Flow:** the start tap opens the intro, and the video plays with sound at
+  the Music volume.
+  - **Skip** is on screen with a 44px+ target.
+  - No music plays under the video. The menu follows the video's end, then
+    Gentle Canopy starts.
+- **Skip:** a double tap or extra key press right after Start doesn't skip
+  it. The Skip button and Esc, Enter and Space do, but held-key repeats don't.
+- **Once per session:** after a reload Start goes straight to the menu, and a
+  new tab plays the intro again.
+- **Never trapped:** the unsupported real MP4, a 404 and a download that never
+  answers all reach the menu (in about 0.1 s, 0.3 s and 4 s), with the menu
+  music. Hiding the tab ends the intro.
+- **Music off:** the intro plays muted.
+- **Layout:** at 360×640, 320×568 and a 740×360 landscape phone:
+  - the start logo is in view with no page scroll
+  - on a Hard board every control is on screen
+  - the footer and its logo sit below the board without covering it
+  - tiles stay at 40px or more
+- **Offline:** `logo.png` and `inspiresoftwareintro.mp4` are precached. A new
+  tab opened offline loads the start logo, gets the video from the cache
+  (206) and reaches the menu and a game.
+
+The other browser suites start every page as if the intro was already seen
+this session, via `launchBrowser()` in `tools/lib/serve.mjs`. That way
+Start → menu works as before for them.
 
 ## Checking bird calls
 
@@ -931,8 +988,9 @@ change.
 **Offline needs one successful online load.** That first visit registers
 `sw.js`, which precaches the whole game into one versioned cache: HTML, CSS,
 every JS module, the manifest, the icons, and all 40 cropped bird tiles (the
-120px and full-resolution WebP), the two music tracks and the five bird calls, about 6.8 MB in all
-(the tracks are about 5.6 MB). From then on the game loads and
+120px and full-resolution WebP), the two music tracks, the five bird calls, and
+the INSPIRE logo and intro video, about 7.1 MB in all (the tracks are about 5.6
+MB). From then on the game loads and
 plays fully offline, including deep links like `?seed=123`, autosave and
 Continue.
 

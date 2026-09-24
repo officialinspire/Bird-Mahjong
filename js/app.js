@@ -1,6 +1,6 @@
 // Bird Mahjong app shell: screen flow, settings and background.
-// Flow: Start → Main menu → Difficulty → Game → Results, plus How to Play
-// and Settings off the menu. Gameplay lives in js/ui/game-controller.js on
+// Flow: Start → INSPIRE intro (once per browser session) → Main menu →
+// Difficulty → Game → Results, plus How to Play and Settings off the menu. Gameplay lives in js/ui/game-controller.js on
 // top of the pure logic in js/game/.
 
 import { AUDIO_FILES, DIFFICULTIES, SMALL_TILE_DIR, difficultyById } from "./config.js";
@@ -13,6 +13,7 @@ import { openStorage } from "./storage.js";
 import { tilesLeft } from "./game/game.js";
 import { createGameController } from "./ui/game-controller.js";
 import { createSound } from "./ui/sound.js";
+import { createIntro } from "./ui/intro.js";
 import { setupPwa } from "./pwa.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -59,8 +60,24 @@ function showScreen(name) {
   next.focus({ preventScroll: true });
 }
 
+// The intro starts from the Start tap/key, which is also the gesture that
+// lets its video (and later the music) play. It ends by itself on end,
+// Skip, failure, a stall or a hidden tab; see js/ui/intro.js.
+const intro = createIntro({
+  video: $("#intro-video"),
+  skipButton: $("#btn-skip-intro"),
+  src: "inspiresoftwareintro.mp4",
+  onDone: () => { if (state.screen === "intro") showScreen("menu"); },
+});
+
 function leaveStart() {
-  if (state.screen === "start") showScreen("menu");
+  if (state.screen !== "start") return; // only the first tap/key counts
+  if (!intro.pending()) {
+    showScreen("menu");
+    return;
+  }
+  showScreen("intro");
+  intro.play({ muted: !state.settings.music, volume: state.settings.musicVolume });
 }
 
 // ---------- Difficulty ----------
@@ -252,8 +269,13 @@ function anyDialogOpen() {
   return $("#pause-dialog").open || $("#new-game-dialog").open;
 }
 
-/** Gentle Canopy everywhere except active play (so also while paused). */
+/**
+ * Gentle Canopy everywhere except active play (so also while paused). No
+ * music under the intro video, nor on Start when the intro comes next (so
+ * the first tap doesn't start a track only to cut it).
+ */
 function musicSceneFor(screen) {
+  if (screen === "intro" || (screen === "start" && intro.pending())) return null;
   return screen === "game" && !anyDialogOpen() ? "game" : "menu";
 }
 
@@ -374,7 +396,16 @@ function onGameShortcut(event) {
 }
 
 function onKeydown(event) {
+  if (state.screen === "intro") {
+    // Skip with Escape, Enter or Space; a held key's repeats don't count.
+    if (!event.repeat && ["Escape", "Enter", " "].includes(event.key)) {
+      event.preventDefault();
+      intro.skip();
+    }
+    return;
+  }
   if (state.screen === "start") {
+    if (event.repeat) return;
     if (event.key === "Tab" || event.metaKey || event.ctrlKey || event.altKey) return;
     event.preventDefault();
     leaveStart();
@@ -434,6 +465,7 @@ function bindEvents() {
   // pagehide also covers closing the tab or reloading.
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
+      intro.finish("hidden"); // no intro playing in a background tab
       openPause();
       autosave();
       sound.suspend(); // no audio from a background tab

@@ -22,7 +22,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
-import { launchBrowser, serve, ROOT, isBenignFailure } from "./lib/serve.mjs";
+import { INTRO_SEEN_KEY, launchBrowser, serve, ROOT, isBenignFailure, skipIntro } from "./lib/serve.mjs";
 import { SEED, playPairs, solutionFor, startDifficulty } from "./lib/play.mjs";
 import { precacheList } from "./build-sw.mjs";
 
@@ -82,6 +82,7 @@ async function installability(url) {
     ...DESKTOP,
     ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
   });
+  await context.addInitScript(skipIntro, INTRO_SEEN_KEY); // Start → menu (the intro has its own suite)
   try {
     const page = context.pages()[0] || (await context.newPage());
     await page.goto(url, { waitUntil: "networkidle" });
