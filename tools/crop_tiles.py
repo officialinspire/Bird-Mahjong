@@ -17,6 +17,8 @@ script measures the actual boundaries:
 
 Outputs (all regenerated on every run; the source JPG is only read):
   assets/tiles/NN-<id>.png   one RGBA PNG per tile (NN = 01..20, row-major)
+  assets/tiles-sm/NN-<id>.webp  small (120px wide) copies for decoration/UI
+  assets/tiles-md/NN-<id>.webp  full-resolution WebP copies for the zoomed board
   assets/contact-sheet.png   labelled overview of every crop
   data/crops.json            measured crop boxes, for auditing/regression
 
@@ -37,6 +39,9 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "bird-mahjong-tiles.jpg"
 MAPPING = ROOT / "data" / "tiles.json"
 TILE_DIR = ROOT / "assets" / "tiles"
+SMALL_DIR = ROOT / "assets" / "tiles-sm"
+SMALL_WIDTH = 120
+MEDIUM_DIR = ROOT / "assets" / "tiles-md"
 CONTACT_SHEET = ROOT / "assets" / "contact-sheet.png"
 CROPS_JSON = ROOT / "data" / "crops.json"
 
@@ -152,9 +157,10 @@ def main() -> None:
     if len(by_pos) != ROWS * COLS:
         raise SystemExit("data/tiles.json must map every row/col exactly once")
 
-    TILE_DIR.mkdir(parents=True, exist_ok=True)
-    for old in TILE_DIR.glob("*.png"):
-        old.unlink()
+    for directory, pattern in ((TILE_DIR, "*.png"), (SMALL_DIR, "*.webp"), (MEDIUM_DIR, "*.webp")):
+        directory.mkdir(parents=True, exist_ok=True)
+        for old in directory.glob(pattern):
+            old.unlink()
 
     boxes = []
     row_bands = split_bands(mask.sum(1).astype(float), ROWS, W)
@@ -174,10 +180,18 @@ def main() -> None:
             crop = pixels[box[1]:box[3], box[0]:box[2]]
             rgba = np.dstack([crop, background_alpha(crop)])
             filename = f"{index:02d}-{info['id']}.png"
-            Image.fromarray(rgba, "RGBA").save(TILE_DIR / filename, optimize=True)
+            tile = Image.fromarray(rgba, "RGBA")
+            tile.save(TILE_DIR / filename, optimize=True)
+            small_name = filename.replace(".png", ".webp")
+            small_h = round(tile.height * SMALL_WIDTH / tile.width)
+            small = tile.resize((SMALL_WIDTH, small_h), Image.LANCZOS)
+            small.save(SMALL_DIR / small_name, "WEBP", quality=82, method=6)
+            tile.save(MEDIUM_DIR / small_name, "WEBP", quality=82, method=6)
             boxes.append({
                 "index": index, "id": info["id"], "name": info["name"],
                 "row": r, "col": c, "file": f"assets/tiles/{filename}",
+                "small": f"assets/tiles-sm/{small_name}",
+                "medium": f"assets/tiles-md/{small_name}",
                 "box": {"x": box[0], "y": box[1],
                         "width": box[2] - box[0], "height": box[3] - box[1]},
             })
