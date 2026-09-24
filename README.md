@@ -3,8 +3,61 @@
 A woodland tile-matching game in vanilla HTML/CSS/JS — no framework, no build
 step, no runtime CDN — hosted on GitHub Pages.
 
-**Status:** playable. All four boards, hint / shuffle / undo, scoring and
-results work.
+**Play it:** <https://officialinspire.github.io/Bird-Mahjong/>. It installs as
+an app and works offline after the first visit.
+
+**Status:** released. There are three difficulties (Easy 24 tiles, Medium 40,
+Hard 60). The game has hint, undo, shuffle and restart, autosave with
+Continue, optional sound and animation, keyboard play, and offline install.
+Every generated board has a verified solution.
+
+## Controls
+
+| Action | Touch / mouse | Keyboard |
+|--------|---------------|----------|
+| Start | Tap or click anywhere on the start screen | Any key |
+| Select a tile | Tap or click a **free** tile (bright, not striped) | Tab to the board, then arrows to move, then Enter or Space |
+| Take a pair | Select its twin (exactly the same bird) | Same |
+| Deselect | Tap the selected tile again | Enter or Space on it again |
+| Hint | **Hint** button | H |
+| Undo | **Undo** button (also offered when you're stuck) | U or Ctrl/⌘+Z |
+| Pause | **Pause** or ☰ | Esc |
+| New board | **New Game** (asks first if you've made progress) | Tab to it, then Enter |
+| Look around a big board | Swipe or drag inside the board | Arrow keys (the view follows focus) |
+| Zoom | − / Fit / + (shown when a board can't fit at a readable size) | Tab to them |
+| Out of pairs | **Shuffle tiles**, or **Restart Board** if no shuffle can help | Focus moves to the offer |
+| Resume later | Close the tab or app; **Continue** on the menu | — |
+
+A tile is **free** when nothing sits on top of it and its left or right side
+is open. Blocked tiles are faded and striped; the selected tile has a ring and
+a ✓; hinted tiles have a dashed ring and a "?".
+
+## Known limits
+
+- **Offline needs one online visit.** The first load must succeed online. After
+  that the whole game (and the tile gallery, once opened) works offline.
+- **Big boards pan on phones.** Tiles never shrink below 40px, so on narrow
+  phones Medium and Hard open zoomed in, and you swipe to see the rest (Fit
+  shows the whole board, smaller). Easy fits on every phone tested.
+- **Tile labels are short.** With *Show bird names on tiles* on and the
+  smallest tiles, longer names can be cut off ("Woodpe…"). Screen readers
+  always get the full name and a description.
+- **Undo can forgive a mismatch.** Undoing right after a mismatch restores the
+  streak from before the last pair. There are no penalties, so it's left that
+  way.
+- **Local only.** Saves, settings and best scores live in this browser on this
+  device. There are no accounts or sync, and clearing site data removes them.
+  In private browsing or with blocked storage the game still plays, but
+  nothing is kept after the tab closes (Settings says so).
+- **Updates wait for a refresh.** A new version downloads in the background and
+  is offered with a *Refresh* banner. If you pick *Later*, it applies the next
+  time the app is opened fresh.
+- **iOS has no install prompt.** On iPhone and iPad, use Share → *Add to Home
+  Screen*.
+- **No intro video or logo.** The Sudoku / Deja Vu intro video and INSPIRE logo
+  aren't part of this repo, so they aren't shown.
+- **One game per tab.** Playing in two tabs at once saves over the same slot;
+  the most recent change wins.
 
 `bird-mahjong-tiles.jpg` is the original 5 × 4 tile sheet. It is kept as-is and
 is only ever **read** by the tooling; every other image is derived from it.
@@ -464,7 +517,7 @@ flow (any key to start, Escape to pause and to go back).
 npm install                      # installs Playwright (dev only)
 npx playwright install chromium  # or set CHROMIUM_PATH=/path/to/chrome
 npm run test:layout -- shots/    # optional dir for per-screen screenshots
-npm test                         # logic, crops, layout, play, save, polish and offline checks
+npm test                         # every check, including the release sweep
 ```
 
 ## Checking play
@@ -591,6 +644,49 @@ npm run test:save
 - that every module reachable from `js/app.js`, every file `index.html` loads,
   and every tile are precached
 - that there are no absolute root paths anywhere
+
+## Release sweep
+
+`tools/verify-release.mjs` (`npm run test:release`) plays **every difficulty
+to completion** on 10 devices:
+
+| Phones (touch) | Tablets (touch) | Desktop (mouse) |
+|----------------|-----------------|-----------------|
+| Android 360×640, 393×851, 412×915 | 800×1280 | 1024×640 |
+| Android landscape 640×360, 851×393 | 1280×800 | 1366×768, 1920×1080 |
+
+On every device and difficulty, the sweep checks the start, menu, difficulty,
+game and results screens. It fails on:
+
+- page scroll on the game screen
+- a clipped or covered control, or one shorter than 44px
+- text smaller than 12px
+- tiles narrower than 40px
+- a board that overflows without zoom controls
+- a board area that is too short
+- a board scrolled out of bounds
+- any console error, warning or failed request
+
+It also checks:
+
+- **Zoom:** zooming in and back out returns to the same view, and Fit shows
+  the whole board.
+- **Rotation (touch devices):** rotating mid-game with a tile selected keeps
+  the selection and the tile in view. The board stays readable and in bounds,
+  nothing gets clipped, and the same holds after rotating back.
+
+Fixed in this pass:
+
+- **Small text:** stat and label text was 9.9–11.5px on phones; it is now 12px
+  everywhere.
+- **Landscape clipping:** on landscape phones, New Game and the zoom buttons
+  were clipped. The side column now uses a compact two-column tool grid.
+- **Rotation shrinking tiles:** rotating from a fitted board to one that needs
+  zoom could shrink tiles to 32px. It now goes to the readable size, keeps
+  your own zoom, and holds your place.
+- **Stray score tag:** a "+points" tag from the last match could briefly
+  scroll the board during a resize.
+- **Pull-to-refresh:** Android's pull-to-refresh is now off during play.
 
 ## Deploying to GitHub Pages
 
