@@ -6,7 +6,13 @@
   <meta name="theme-color" content="#fbf6e8">
   <meta name="description" content="Bird Mahjong — a woodland tile-matching game.">
   <title>Bird Mahjong</title>
-  <link rel="icon" href="assets/tiles-sm/10-northern-cardinal.webp">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Bird Mahjong">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="stylesheet" href="css/app.css">
   <script type="module" src="js/app.js"></script>
 </head>
@@ -52,6 +58,7 @@
             <button type="button" class="btn" data-go="settings">Settings</button>
           </nav>
           <footer class="menu-footer">
+            <button type="button" class="btn btn--small" id="btn-install" hidden>Install app</button>
             <span>by INSPIRE</span>
             <a href="tiles.html">Tile reference</a>
           </footer>
@@ -304,6 +311,15 @@
     </section>
 
   </main>
+  <!-- Shown when a new version has been downloaded and is ready. -->
+  <div id="update-banner" class="update-banner" role="status" hidden>
+    <p>A new version of Bird Mahjong is ready.</p>
+    <div class="update-actions">
+      <button type="button" class="btn btn--small btn--primary" id="btn-update-refresh">Refresh</button>
+      <button type="button" class="btn btn--small" id="btn-update-later">Later</button>
+    </div>
+  </div>
+
   <noscript><p class="noscript">Bird Mahjong needs JavaScript to run.</p></noscript>
 </body>
 </html>

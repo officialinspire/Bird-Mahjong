@@ -43,6 +43,13 @@ tools/verify-layout.mjs    responsive layout checks (Playwright)
 tools/verify-play.mjs      touch and mouse play checks (Playwright)
 tools/verify-save.mjs      autosave / Continue checks with real reloads (Playwright)
 tools/verify-polish.mjs    keyboard, labels, sound, animation, contrast checks (Playwright)
+tools/verify-offline.mjs   offline, install and update checks (Playwright)
+tools/build-sw.mjs         writes sw.js's precache list + content-hash VERSION
+tools/make_icons.py        builds icons/ from the cropped tiles
+manifest.webmanifest       install metadata (relative start_url / scope)
+sw.js                      service worker: offline cache + safe updates
+js/pwa.js                  registers sw.js, update banner, Install button
+icons/                     app icons (generated)
 package.json               dev-only scripts; the site itself needs no npm
 ```
 
@@ -457,7 +464,7 @@ flow (any key to start, Escape to pause and to go back).
 npm install                      # installs Playwright (dev only)
 npx playwright install chromium  # or set CHROMIUM_PATH=/path/to/chrome
 npm run test:layout -- shots/    # optional dir for per-screen screenshots
-npm test                         # logic, crops, layout, play, save and polish checks
+npm test                         # logic, crops, layout, play, save, polish and offline checks
 ```
 
 ## Checking play
@@ -554,11 +561,124 @@ npm run test:save
   menu, difficulty, game, pause, New Game, How to Play, Settings and results
   screens.
 
+## Checking offline, install and updates
+
+`tools/verify-offline.mjs` (`npm run test:offline`) serves the repo from
+`/Bird-Mahjong/`, the same path GitHub Pages uses, and checks:
+
+- **First load:** the worker takes control, and one versioned cache holds all
+  69 precached files. There's no reload or update banner on first install.
+- **Install:** in a regular Chromium profile, the manifest parses without
+  errors, `start_url` and `scope` resolve to `/Bird-Mahjong/`, and Chromium
+  reports **no installability errors**. Chromium offers installation itself,
+  so *Install app* shows on the menu and hands off to the browser's prompt.
+- **Offline:** the app reloads with the network off. `?seed=` and
+  `index.html` deep links open, and all 74 bird images load, including the
+  full-resolution ones on a zoomed Hard board. Continue restores the board
+  after an offline reload, and a whole game plays to the results screen.
+- **Update:** a "v2" (new worker and changed CSS) is published mid-test.
+  - The page keeps using v1, even across a plain reload, while a Refresh
+    banner appears. *Later* hides it.
+  - *Refresh* switches to v2 with exactly one reload, and deletes the v1
+    cache. The board in progress survives, and v2 then works offline.
+- **Paths:** every request stays under `/Bird-Mahjong/` and finds its file.
+
+`tests/pwa.test.js` also checks:
+
+- the manifest's fields and relative URLs
+- that icon files match their declared sizes
+- that `sw.js` is up to date
+- that every module reachable from `js/app.js`, every file `index.html` loads,
+  and every tile are precached
+- that there are no absolute root paths anywhere
+
 ## Deploying to GitHub Pages
 
-1. Push to GitHub.
-2. Repository **Settings → Pages → Build and deployment**: Source *Deploy from a
-   branch*, branch `main`, folder `/ (root)`.
-3. The site appears at `https://<user>.github.io/<repo>/`.
+The site is plain static files; there is no build server. Only the service
+worker's file list and version are generated, and that is committed.
 
-A `.nojekyll` file is included so Pages serves the files as-is.
+**Before every deploy** (whenever anything the game loads has changed):
+
+```sh
+npm run build:sw        # refresh sw.js: precache list + content-hash VERSION
+npm test                # includes a check that sw.js is up to date
+git add -A && git commit -m "…" && git push
+```
+
+`npm test` fails with *"sw.js is out of date"* if you forget `build:sw`, so
+a release can't ship stale offline files.
+
+**First-time setup**
+
+1. In the repository go to **Settings → Pages → Build and deployment**. Choose
+   Source *Deploy from a branch*, branch `main`, folder `/ (root)`.
+2. The game is served at `https://<user>.github.io/Bird-Mahjong/`, which here is
+   `https://officialinspire.github.io/Bird-Mahjong/`. Pages serves over HTTPS,
+   which service workers require.
+3. A `.nojekyll` file is included so Pages serves the files as-is.
+
+Every path is relative: the manifest's `start_url` and `scope` are `./`, and
+the worker is registered as `./sw.js` with scope `./`. The same files work at
+a domain root, under `/Bird-Mahjong/`, or on a custom domain, with nothing to
+change.
+
+## Install and offline play
+
+**Offline needs one successful online load.** That first visit registers
+`sw.js`, which precaches the whole game into one versioned cache: HTML, CSS,
+every JS module, the manifest, the icons, and all 40 cropped bird tiles (the
+120px and full-resolution WebP), about 1.2 MB. From then on the game loads and
+plays fully offline, including deep links like `?seed=123`, autosave and
+Continue.
+
+The tile gallery (`tiles.html`) isn't needed to play. It's cached the first
+time you open it.
+
+**Installing**
+
+- **Chrome, Edge (desktop), Chrome (Android):** use *Install app* on the main
+  menu, which appears when the browser offers it. You can also use the
+  install icon in the address bar, or ⋮ → *Install Bird Mahjong* / *Add to
+  Home screen*.
+- **Safari (iOS/iPadOS):** Share → *Add to Home Screen*. Safari has no install
+  prompt, so the button doesn't appear there.
+- **Safari (macOS):** File → *Add to Dock*.
+
+The installed app opens standalone with the woodland icon.
+
+**How updates reach players** (so no one is stuck on old files):
+
+1. `VERSION` in `sw.js` is a hash of every precached file, so any change
+   produces a new worker.
+2. The page checks for a new worker on every load and whenever it returns to
+   the foreground (`updateViaCache: "none"`, so `sw.js` is never served stale
+   by the HTTP cache or CDN).
+3. The new worker downloads the new version into a *separate* cache, with
+   `cache: "reload"` to skip stale HTTP copies. If any file fails, the update
+   is abandoned and the current version keeps working.
+4. Meanwhile the open page keeps using only the old version's files. Old HTML
+   never meets new scripts.
+5. A small banner says *A new version of Bird Mahjong is ready*.
+   - **Refresh** autosaves the board, switches to the new version, and
+     reloads once. The board is still there under Continue.
+   - **Later** hides the banner. The new version starts the next time the app
+     is opened fresh (all tabs or windows closed).
+6. When the new version takes over, the old version's cache is deleted.
+
+**Troubleshooting**
+
+- A stuck or odd install can be reset in the browser's site settings (clear
+  site data), or in DevTools → Application → Service workers → *Unregister*
+  and Storage → *Clear site data*. The next online load reinstalls.
+- Clearing site data also clears saved games and best scores, because they live
+  in the same browser storage.
+- Opening `index.html` straight from disk (`file://`) can't register a service
+  worker. Serve the folder over HTTP (`npm run serve`) or use the Pages URL.
+
+**Icons** are generated from the cropped tiles by `npm run build:icons`
+(`tools/make_icons.py`):
+
+- 192px and 512px "any" icons
+- a 512px maskable icon with the artwork inside the 80% safe zone
+- a 180px Apple touch icon
+- a 32px favicon

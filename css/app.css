@@ -1012,3 +1012,29 @@ kbd {
   text-align: center;
   color: var(--bark);
 }
+
+/* ---------- Install and updates ---------- */
+
+.update-banner {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(calc(100% - 24px), 440px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  border: 2px solid var(--rim);
+  box-shadow: 0 12px 36px rgb(47 42 32 / 0.28);
+  color: var(--bark);
+  font-weight: 600;
+}
+.update-banner[hidden] { display: none; }
+.update-actions { display: flex; gap: 8px; }
+#btn-install[hidden] { display: none; }

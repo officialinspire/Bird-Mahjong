@@ -13,6 +13,7 @@ import { openStorage } from "./storage.js";
 import { tilesLeft } from "./game/game.js";
 import { createGameController } from "./ui/game-controller.js";
 import { createSound } from "./ui/sound.js";
+import { setupPwa } from "./pwa.js";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -426,6 +427,15 @@ renderDifficulties();
 renderScoring();
 renderContinue();
 $("#storage-note").hidden = persistent;
+
+// Offline + install. Before an update reloads the page, save the board.
+setupPwa({
+  banner: $("#update-banner"),
+  refreshButton: $("#btn-update-refresh"),
+  laterButton: $("#btn-update-later"),
+  installButton: $("#btn-install"),
+  beforeReload: autosave,
+});
 
 // Audio may only start after the player does something. Every tap or key
 // press (re)unlocks it; with Sound off, unlock() does nothing at all.
