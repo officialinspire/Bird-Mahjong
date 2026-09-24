@@ -58,6 +58,27 @@ a ✓; hinted tiles have a dashed ring and a "?".
   aren't part of this repo, so they aren't shown.
 - **One game per tab.** Playing in two tabs at once saves over the same slot;
   the most recent change wins.
+- **Audio waits for a tap.** Browsers only allow sound after a gesture, so
+  music starts on the first tap or key press. The bird calls load then too, and
+  a match made in the second or so before they're ready plays the chirp
+  instead.
+- **Only five birds have real calls.** American Crow, Common Raven, Bald Eagle,
+  Northern Cardinal and Wood Duck. The other 15 birds use the synthesized
+  chirp.
+- **Background tabs are silent.** Hiding the tab pauses the game and the
+  music. Phone settings such as a hardware silent switch can also mute Web
+  Audio; that's outside the game's control.
+- **Short waits are deliberate.**
+  - Taps are ignored for the 0.28 s while a matched pair fades out, so you
+    can't tap through it. With reduced motion this is a 0.12 s guard.
+  - Pause and New Game wait out the 1.5 s board-clear moment. The win is
+    recorded as soon as the board is cleared, even if the page is closed
+    during that moment.
+- **First visit downloads ~6.8 MB.** That's for offline play, and it's mostly
+  the two music tracks.
+- **Automated tests run in Chromium.** Firefox and Safari (including iOS) are
+  expected to work, since the game uses standard web APIs only, but they
+  aren't covered by the automated suites.
 
 `bird-mahjong-tiles.jpg` is the original 5 × 4 tile sheet. It is kept as-is and
 is only ever **read** by the tooling; every other image is derived from it.

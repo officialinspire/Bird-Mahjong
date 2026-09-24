@@ -32,7 +32,7 @@ const formatTime = (seconds) => {
  * selection, hint, shuffle, restart) while a game is in progress, so the app
  * can autosave. `snapshot` is { state, elapsedMs }.
  */
-export function createGameController({ elements, reducedMotion, onWin, onChange = () => {}, sound = null }) {
+export function createGameController({ elements, reducedMotion, onWin, onWon = () => {}, onChange = () => {}, sound = null }) {
   const play = (name, opts) => sound?.play(name, opts);
   const view = createBoardView({
     viewport: elements.viewport,
@@ -237,6 +237,13 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     unlockTimer = setTimeout(() => delete elements.board.dataset.locked, ms);
   }
 
+  /** The fade was settled (Undo, Restart, Shuffle): taps are welcome again. */
+  function unlockInput() {
+    lockedUntil = 0;
+    clearTimeout(unlockTimer);
+    delete elements.board.dataset.locked;
+  }
+
   function afterMatch() {
     if (isWon(state)) {
       finished = true;
@@ -244,7 +251,11 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
       sync();
       say("Board cleared! Well flown.", "good");
       play("win");
-      const deliver = () => { winTimer = null; view.clearEffects(); onWin(summary()); };
+      // Record the win now: closing or reloading during the short board-clear
+      // moment must not lose it. The results screen follows the celebration.
+      const result = summary();
+      onWon(result);
+      const deliver = () => { winTimer = null; view.clearEffects(); onWin(result); };
       if (reducedMotion()) {
         winTimer = setTimeout(deliver, QUIET_WIN_MS);
       } else {
@@ -302,6 +313,7 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     const next = shuffleRemaining(state);
     hint = null;
     view.clearEffects(); // a fading tile must not change bird mid-fade
+    unlockInput();
     if (next !== state) {
       state = next;
       sync();
@@ -318,6 +330,7 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     state = restartBoard(state);
     hint = null;
     view.clearEffects();
+    unlockInput();
     elapsedMs = 0;
     runningSince = null;
     startClock();
@@ -332,6 +345,7 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     state = undo(state);
     hint = null;
     view.clearEffects(); // no "+120" or sparkle for a pair that's back
+    unlockInput();       // …and the restored tiles can be tapped straight away
     sync();
     play("undo");
     const back = before - state.score;

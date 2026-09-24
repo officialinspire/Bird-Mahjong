@@ -199,6 +199,17 @@ async function undoMidAnimation(browser, url) {
   await page.waitForTimeout(600);
   check(await back(), "and no leftover timer hides it later");
   check((await stats(page)).score.replace(/\D/g, "") === "0", "score back to 0");
+  // Regression: Undo used to leave the post-match tap lock running, so the
+  // restored pair ignored taps for the rest of the fade.
+  const [c, d] = [a, b];
+  await quickMatch(page, c, d);
+  await page.click("#btn-undo");
+  await quickMatch(page, c, d);
+  const rematched = await page.evaluate(([x, y]) => [x, y].every((i) =>
+    document.querySelector(`#board .tile[data-index="${i}"]`).classList.contains("is-removing")), [c, d]);
+  check(rematched, "a pair put back by Undo mid-fade can be matched again straight away");
+  await afterMatch(page, c, d);
+  await page.click("#btn-undo");
   // Matching the same pair again works normally.
   await quickMatch(page, a, b);
   await afterMatch(page, a, b);
