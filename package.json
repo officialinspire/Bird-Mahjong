@@ -1,0 +1,15 @@
+{
+  "name": "bird-mahjong",
+  "private": true,
+  "description": "Bird Mahjong — static site; npm is only used for dev checks.",
+  "type": "module",
+  "scripts": {
+    "serve": "python3 -m http.server 8000",
+    "test:layout": "node tools/verify-layout.mjs",
+    "test:crops": "python3 tools/verify_crops.py",
+    "test": "npm run test:crops && npm run test:layout"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0"
+  }
+}

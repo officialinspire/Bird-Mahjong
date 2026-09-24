@@ -46,6 +46,9 @@ def main() -> int:
         if not path.exists():
             errors.append(f"{label}: missing {c['file']}")
             continue
+        small = ROOT / c.get("small", "")
+        if not c.get("small") or not small.is_file():
+            errors.append(f"{label}: missing small copy")
         img = Image.open(path)
         if img.size != (b["width"], b["height"]) or img.mode != "RGBA":
             errors.append(f"{label}: size/mode {img.size} {img.mode} != box")

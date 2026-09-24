@@ -8,6 +8,7 @@
       "row": 1,
       "col": 1,
       "file": "assets/tiles/01-bald-eagle.png",
+      "small": "assets/tiles-sm/01-bald-eagle.webp",
       "box": {
         "x": 89,
         "y": 6,
@@ -22,6 +23,7 @@
       "row": 1,
       "col": 2,
       "file": "assets/tiles/02-osprey.png",
+      "small": "assets/tiles-sm/02-osprey.webp",
       "box": {
         "x": 335,
         "y": 4,
@@ -36,6 +38,7 @@
       "row": 1,
       "col": 3,
       "file": "assets/tiles/03-red-tailed-hawk.png",
+      "small": "assets/tiles-sm/03-red-tailed-hawk.webp",
       "box": {
         "x": 597,
         "y": 4,
@@ -50,6 +53,7 @@
       "row": 1,
       "col": 4,
       "file": "assets/tiles/04-peregrine-falcon.png",
+      "small": "assets/tiles-sm/04-peregrine-falcon.webp",
       "box": {
         "x": 859,
         "y": 2,
@@ -64,6 +68,7 @@
       "row": 1,
       "col": 5,
       "file": "assets/tiles/05-barred-owl.png",
+      "small": "assets/tiles-sm/05-barred-owl.webp",
       "box": {
         "x": 1122,
         "y": 2,
@@ -78,6 +83,7 @@
       "row": 2,
       "col": 1,
       "file": "assets/tiles/06-great-horned-owl.png",
+      "small": "assets/tiles-sm/06-great-horned-owl.webp",
       "box": {
         "x": 79,
         "y": 278,
@@ -92,6 +98,7 @@
       "row": 2,
       "col": 2,
       "file": "assets/tiles/07-american-crow.png",
+      "small": "assets/tiles-sm/07-american-crow.webp",
       "box": {
         "x": 334,
         "y": 278,
@@ -106,6 +113,7 @@
       "row": 2,
       "col": 3,
       "file": "assets/tiles/08-common-raven.png",
+      "small": "assets/tiles-sm/08-common-raven.webp",
       "box": {
         "x": 595,
         "y": 279,
@@ -120,6 +128,7 @@
       "row": 2,
       "col": 4,
       "file": "assets/tiles/09-blue-jay.png",
+      "small": "assets/tiles-sm/09-blue-jay.webp",
       "box": {
         "x": 858,
         "y": 280,
@@ -134,6 +143,7 @@
       "row": 2,
       "col": 5,
       "file": "assets/tiles/10-northern-cardinal.png",
+      "small": "assets/tiles-sm/10-northern-cardinal.webp",
       "box": {
         "x": 1121,
         "y": 279,
@@ -148,6 +158,7 @@
       "row": 3,
       "col": 1,
       "file": "assets/tiles/11-american-robin.png",
+      "small": "assets/tiles-sm/11-american-robin.webp",
       "box": {
         "x": 75,
         "y": 551,
@@ -162,6 +173,7 @@
       "row": 3,
       "col": 2,
       "file": "assets/tiles/12-black-capped-chickadee.png",
+      "small": "assets/tiles-sm/12-black-capped-chickadee.webp",
       "box": {
         "x": 335,
         "y": 550,
@@ -176,6 +188,7 @@
       "row": 3,
       "col": 3,
       "file": "assets/tiles/13-tufted-titmouse.png",
+      "small": "assets/tiles-sm/13-tufted-titmouse.webp",
       "box": {
         "x": 595,
         "y": 550,
@@ -190,6 +203,7 @@
       "row": 3,
       "col": 4,
       "file": "assets/tiles/14-pileated-woodpecker.png",
+      "small": "assets/tiles-sm/14-pileated-woodpecker.webp",
       "box": {
         "x": 856,
         "y": 550,
@@ -204,6 +218,7 @@
       "row": 3,
       "col": 5,
       "file": "assets/tiles/15-belted-kingfisher.png",
+      "small": "assets/tiles-sm/15-belted-kingfisher.webp",
       "box": {
         "x": 1120,
         "y": 551,
@@ -218,6 +233,7 @@
       "row": 4,
       "col": 1,
       "file": "assets/tiles/16-great-blue-heron.png",
+      "small": "assets/tiles-sm/16-great-blue-heron.webp",
       "box": {
         "x": 74,
         "y": 822,
@@ -232,6 +248,7 @@
       "row": 4,
       "col": 2,
       "file": "assets/tiles/17-wood-duck.png",
+      "small": "assets/tiles-sm/17-wood-duck.webp",
       "box": {
         "x": 334,
         "y": 822,
@@ -246,6 +263,7 @@
       "row": 4,
       "col": 3,
       "file": "assets/tiles/18-wild-turkey.png",
+      "small": "assets/tiles-sm/18-wild-turkey.webp",
       "box": {
         "x": 595,
         "y": 821,
@@ -260,6 +278,7 @@
       "row": 4,
       "col": 4,
       "file": "assets/tiles/19-canada-goose.png",
+      "small": "assets/tiles-sm/19-canada-goose.webp",
       "box": {
         "x": 857,
         "y": 824,
@@ -274,6 +293,7 @@
       "row": 4,
       "col": 5,
       "file": "assets/tiles/20-ruby-throated-hummingbird.png",
+      "small": "assets/tiles-sm/20-ruby-throated-hummingbird.webp",
       "box": {
         "x": 1119,
         "y": 821,

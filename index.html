@@ -1,21 +1,217 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-motion="system">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fbf6e8">
+  <meta name="description" content="Bird Mahjong — a woodland tile-matching game.">
   <title>Bird Mahjong</title>
-  <link rel="icon" href="assets/tiles/01-bald-eagle.png">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="assets/tiles-sm/10-northern-cardinal.webp">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/app.js"></script>
 </head>
-<body>
-  <header>
-    <h1>Bird Mahjong</h1>
-    <p>The 20 bird tiles, cropped from <a href="bird-mahjong-tiles.jpg">the original sheet</a>.</p>
-  </header>
-  <main>
-    <ol id="tiles" class="tiles" aria-live="polite"></ol>
-    <p id="status" class="status">Loading tiles…</p>
+<body data-screen="start">
+  <!-- Decorative drifting tiles; filled by js/background.js. -->
+  <div id="sky-tiles" class="sky-tiles" aria-hidden="true"></div>
+
+  <main id="app" class="app">
+
+    <!-- 1. Start -->
+    <section id="screen-start" class="screen screen--start is-active" tabindex="-1" aria-labelledby="start-title">
+      <div class="start-card">
+        <div class="hero-tiles" aria-hidden="true">
+          <img src="assets/tiles-sm/09-blue-jay.webp" alt="" width="120" height="153">
+          <img src="assets/tiles-sm/10-northern-cardinal.webp" alt="" width="120" height="152">
+          <img src="assets/tiles-sm/12-black-capped-chickadee.webp" alt="" width="120" height="152">
+        </div>
+        <p class="eyebrow">A woodland tile game</p>
+        <h1 id="start-title" class="brand">Bird <span>Mahjong</span></h1>
+        <p class="start-prompt">Touch, click, or press any key to start</p>
+      </div>
+      <p class="byline">by INSPIRE</p>
+    </section>
+
+    <!-- 2. Main menu -->
+    <section id="screen-menu" class="screen screen--menu" tabindex="-1" aria-labelledby="menu-title" hidden>
+      <div class="menu-layout">
+        <div class="menu-hero" aria-hidden="true">
+          <img src="assets/tiles-sm/01-bald-eagle.webp" alt="" width="120" height="166">
+          <img src="assets/tiles-sm/15-belted-kingfisher.webp" alt="" width="120" height="150">
+          <img src="assets/tiles-sm/20-ruby-throated-hummingbird.webp" alt="" width="120" height="153">
+        </div>
+        <div class="menu-content">
+          <p class="eyebrow">A woodland tile game</p>
+          <h1 id="menu-title" class="brand">Bird <span>Mahjong</span></h1>
+          <nav class="menu-nav" aria-label="Main menu">
+            <button type="button" class="btn btn--primary" data-go="difficulty">New Game</button>
+            <button type="button" class="btn" id="btn-continue" disabled title="No saved game yet">Continue</button>
+            <button type="button" class="btn" data-go="help">How to Play</button>
+            <button type="button" class="btn" data-go="settings">Settings</button>
+          </nav>
+          <footer class="menu-footer">
+            <span>by INSPIRE</span>
+            <a href="tiles.html">Tile reference</a>
+          </footer>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Difficulty picker -->
+    <section id="screen-difficulty" class="screen screen--panel" tabindex="-1" aria-labelledby="difficulty-title" hidden>
+      <header class="panel-header">
+        <button type="button" class="btn-back" data-go="menu">&larr; Menu</button>
+        <div>
+          <p class="eyebrow">New game</p>
+          <h1 id="difficulty-title">Choose your woodland</h1>
+        </div>
+      </header>
+      <div class="panel-body">
+        <ul id="difficulty-list" class="difficulty-list" role="list"></ul>
+      </div>
+    </section>
+
+    <!-- 4. Game -->
+    <section id="screen-game" class="screen screen--game" tabindex="-1" aria-labelledby="game-title" hidden>
+      <header class="game-header">
+        <button type="button" class="icon-btn" data-go="menu" aria-label="Return to main menu">&#9776;</button>
+        <div class="game-title">
+          <h1 id="game-title">Bird Mahjong</h1>
+          <p id="game-difficulty">Easy</p>
+        </div>
+        <button type="button" class="icon-btn" id="btn-pause" aria-label="Pause game">&#10074;&#10074;</button>
+      </header>
+
+      <div class="game-layout">
+        <dl class="game-stats" aria-label="Current game">
+          <div><dt>Tiles left</dt><dd id="stat-tiles">—</dd></div>
+          <div><dt>Moves</dt><dd id="stat-moves">0</dd></div>
+          <div><dt>Time</dt><dd id="stat-time">0:00</dd></div>
+        </dl>
+
+        <div class="board-frame" id="board" role="region" aria-label="Tile board">
+          <div class="board-placeholder">
+            <p class="eyebrow">Board coming soon</p>
+            <p>Gameplay lands in the next update. This screen shows where the tile board, stats and tools will live.</p>
+            <button type="button" class="btn btn--sky" id="btn-preview-results">Preview results screen</button>
+          </div>
+        </div>
+
+        <div class="game-tools" role="toolbar" aria-label="Game tools">
+          <button type="button" class="btn btn--small" disabled>Hint</button>
+          <button type="button" class="btn btn--small" disabled>Shuffle</button>
+          <button type="button" class="btn btn--small" disabled>Undo</button>
+        </div>
+      </div>
+
+      <dialog id="pause-dialog" class="dialog" aria-labelledby="pause-title">
+        <form method="dialog">
+          <p class="eyebrow">Resting on a branch</p>
+          <h2 id="pause-title">Paused</h2>
+          <button class="btn btn--primary" value="resume">Resume</button>
+          <button type="button" class="btn" id="btn-pause-menu">Main Menu</button>
+        </form>
+      </dialog>
+    </section>
+
+    <!-- 5. How to Play -->
+    <section id="screen-help" class="screen screen--panel" tabindex="-1" aria-labelledby="help-title" hidden>
+      <header class="panel-header">
+        <button type="button" class="btn-back" data-go="menu">&larr; Menu</button>
+        <div>
+          <p class="eyebrow">Field guide</p>
+          <h1 id="help-title">How to Play</h1>
+        </div>
+      </header>
+      <div class="panel-body prose">
+        <ol class="steps">
+          <li><strong>Match pairs.</strong> Tap two identical bird tiles to remove them from the board.</li>
+          <li><strong>Only free tiles move.</strong> A tile is free when nothing sits on top of it and its left or right side is open.</li>
+          <li><strong>Clear the woodland.</strong> Remove every tile to win. Fewer moves and a quicker time earn a better score.</li>
+          <li><strong>Stuck?</strong> Use Hint to spot a free pair, Shuffle to rearrange the remaining tiles, or Undo to take back a move.</li>
+        </ol>
+
+        <h2>Look closely</h2>
+        <p>Two dark birds look alike at a glance, but they are different tiles and don't match each other.</p>
+        <div class="lookalikes">
+          <figure>
+            <img src="assets/tiles-sm/07-american-crow.webp" alt="American Crow tile" width="120" height="154" loading="lazy">
+            <figcaption><strong>American Crow</strong> Slim bill, smooth throat, pine boughs on both sides.</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/tiles-sm/08-common-raven.webp" alt="Common Raven tile" width="120" height="153" loading="lazy">
+            <figcaption><strong>Common Raven</strong> Heavy hooked bill, shaggy throat, spruce trees behind.</figcaption>
+          </figure>
+        </div>
+
+        <h2>Controls</h2>
+        <p>Touch or click to select a tile. With a keyboard, use Tab and Enter; Escape pauses the game or goes back a screen.</p>
+      </div>
+    </section>
+
+    <!-- 6. Settings -->
+    <section id="screen-settings" class="screen screen--panel" tabindex="-1" aria-labelledby="settings-title" hidden>
+      <header class="panel-header">
+        <button type="button" class="btn-back" data-go="menu">&larr; Menu</button>
+        <div>
+          <p class="eyebrow">Preferences</p>
+          <h1 id="settings-title">Settings</h1>
+        </div>
+      </header>
+      <div class="panel-body">
+        <form id="settings-form" class="settings" onsubmit="return false">
+          <fieldset class="setting">
+            <legend>Motion</legend>
+            <p class="setting-hint">“Match device” follows your system’s reduce-motion setting.</p>
+            <div class="segmented">
+              <label><input type="radio" name="motion" value="system"><span>Match device</span></label>
+              <label><input type="radio" name="motion" value="reduce"><span>Reduced</span></label>
+              <label><input type="radio" name="motion" value="full"><span>Full</span></label>
+            </div>
+          </fieldset>
+          <label class="setting setting--toggle">
+            <span>
+              <strong>Floating background birds</strong>
+              <span class="setting-hint">Tiles drifting slowly behind the menus.</span>
+            </span>
+            <input type="checkbox" name="backgroundBirds" role="switch">
+          </label>
+          <label class="setting setting--toggle">
+            <span>
+              <strong>Show bird names on tiles</strong>
+              <span class="setting-hint">Helps tell look-alike birds apart. Takes effect once gameplay arrives.</span>
+            </span>
+            <input type="checkbox" name="tileLabels" role="switch">
+          </label>
+          <button type="button" class="btn btn--quiet" id="btn-reset-settings">Reset to defaults</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 7. Results -->
+    <section id="screen-results" class="screen screen--results" tabindex="-1" aria-labelledby="results-title" hidden>
+      <div class="results-card">
+        <div class="results-tiles" aria-hidden="true">
+          <img src="assets/tiles-sm/05-barred-owl.webp" alt="" width="120" height="155">
+          <img src="assets/tiles-sm/19-canada-goose.webp" alt="" width="120" height="154">
+        </div>
+        <p class="eyebrow">Woodland cleared</p>
+        <h1 id="results-title">Well flown!</h1>
+        <p id="results-difficulty" class="results-difficulty">Easy</p>
+        <dl class="results-metrics">
+          <div><dt>Time</dt><dd id="result-time">—</dd></div>
+          <div><dt>Moves</dt><dd id="result-moves">—</dd></div>
+          <div><dt>Hints</dt><dd id="result-hints">—</dd></div>
+          <div><dt>Score</dt><dd id="result-score">—</dd></div>
+        </dl>
+        <p class="results-note">Preview only — real results appear once gameplay is in.</p>
+        <div class="results-actions">
+          <button type="button" class="btn btn--primary" id="btn-play-again">Play Again</button>
+          <button type="button" class="btn" data-go="menu">Main Menu</button>
+        </div>
+      </div>
+    </section>
+
   </main>
-  <script src="js/main.js"></script>
+  <noscript><p class="noscript">Bird Mahjong needs JavaScript to run.</p></noscript>
 </body>
 </html>
