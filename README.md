@@ -18,7 +18,8 @@ css/app.css                palette, layout, floating-tile background
 js/app.js                  screen flow, settings, keyboard handling
 js/ui/board-view.js        DOM board: tile placement, states, zoom/pan, input
 js/ui/game-controller.js   connects js/game logic to the board, timer, messages
-js/ui/bird-names.js        display names and short on-tile labels
+js/ui/bird-names.js        display names, short on-tile labels, spoken visual cues
+js/ui/sound.js             optional synthesized chirps and UI sounds (Web Audio)
 js/config.js               difficulty levels
 js/settings.js             settings persisted in localStorage
 js/storage.js              one safe wrapper around localStorage (memory fallback)
@@ -41,6 +42,7 @@ tests/                     unit tests for the game logic (node --test)
 tools/verify-layout.mjs    responsive layout checks (Playwright)
 tools/verify-play.mjs      touch and mouse play checks (Playwright)
 tools/verify-save.mjs      autosave / Continue checks with real reloads (Playwright)
+tools/verify-polish.mjs    keyboard, labels, sound, animation, contrast checks (Playwright)
 package.json               dev-only scripts; the site itself needs no npm
 ```
 
@@ -94,9 +96,9 @@ The flow is the same as our Sudoku and Deja Vu games:
   it's a new best), pairs, best streak, and your time and fastest time as
   personal stats.
 - **Escape** pauses in-game and goes back to the menu from any other screen.
-- **Settings** (saved in `localStorage`): Motion (Match device / Reduced /
-  Full), floating background birds on/off, short bird-name labels on tiles,
-  and the streak bonus on/off.
+- **Settings** (saved in `localStorage`): Animations (Match device / Minimal /
+  Full), Sound (on/off + volume), floating background birds, short bird-name
+  labels on tiles, and the streak bonus.
 - **Continue** resumes the autosaved board; see *Saving* below.
 - The Sudoku and Deja Vu intro video and INSPIRE logo aren't used here, because
   this repo doesn't include them. Add the files to reuse the intro step.
@@ -162,6 +164,61 @@ and images stay exact. Zoomed tiles load the full-resolution WebP through
 
 `?seed=123` in the URL replays a specific first board, which is handy for
 sharing a deal or reproducing a bug.
+
+## Calm polish: sound, animation and access
+
+**Animations** (Settings → Animations: Match device / Minimal / Full):
+
+- On a match, the two tiles lift and fade (~0.3 s), and a small "+points" tag
+  floats up from them.
+- Clearing a board brings a restrained ~1.5 s moment: a soft glow and a dozen
+  feathers in the palette colours drift up, a gentle chime plays, and then the
+  results appear.
+- *Match device* follows `prefers-reduced-motion`. *Minimal* (or the OS
+  preference) removes all movement: no floats, no feathers, no drifting
+  background, no screen fades, and results appear about 0.25 s after the last
+  match. *Full* overrides the OS preference.
+
+**Sound** (Settings → Sound, plus volume) is synthesized with Web Audio in
+`js/ui/sound.js`, so there are no audio files. There are short two-note
+chirps for matches (pitched slightly differently per bird), a soft tick to
+select, a low tap for a blocked or mismatched tile, rising notes for a hint, a
+flutter for a shuffle, and a four-note chime with a chirp for a clear.
+Nothing is created until the first tap or key press, and only if Sound is on.
+With Sound off, no `AudioContext` exists at all. Turning Sound on, or moving
+the volume, plays a sample.
+
+**The game is identical without either.** With Sound off and Animations on
+Minimal, every rule, score and control is unchanged; the tests play a full
+game that way.
+
+**Keyboard**
+
+- The board is a single Tab stop (roving tabindex). The arrow keys move
+  between free tiles by what's on screen, and Home and End jump to the first
+  and last free tile.
+- Enter or Space selects; H is Hint; U or Ctrl/⌘+Z is Undo; Esc is Pause.
+- After a match, focus moves to the nearest free tile. On a zoomed board the
+  focused tile scrolls into view.
+- The focused tile gets a thick cardinal ring, and is always drawn above its
+  neighbours.
+
+**Labels.** Each tile's accessible name gives its bird and state ("Common
+Raven, free", or "…, covered" / "blocked" / "selected" / "hint"). Its
+`aria-description` adds a short visual cue ("heavy hooked bill and shaggy
+throat, spruce trees") and the layer, so look-alike birds can be told apart
+without sight.
+
+**Touch targets and contrast**
+
+- Buttons, switches and the volume slider are at least 44px tall.
+- Tiles are at least 40px wide and about 51px tall, and a board zooms rather
+  than shrinking below that.
+- `tests/contrast.test.js` reads the palette from `css/app.css` and requires
+  AA (4.5:1) for every text pairing. That includes text over the sky-tinted
+  top of the page, which is why eyebrow labels use the darker leaf green.
+- The browser check measures the rendered contrast of every piece of text on
+  every screen.
 
 ## Help and recovery
 
@@ -400,7 +457,7 @@ flow (any key to start, Escape to pause and to go back).
 npm install                      # installs Playwright (dev only)
 npx playwright install chromium  # or set CHROMIUM_PATH=/path/to/chrome
 npm run test:layout -- shots/    # optional dir for per-screen screenshots
-npm test                         # logic, crops, layout and play checks
+npm test                         # logic, crops, layout, play, save and polish checks
 ```
 
 ## Checking play
@@ -475,6 +532,27 @@ npm run test:play -- shots/      # optional dir for screenshots
 ```sh
 npm run test:save
 ```
+
+## Checking polish and accessibility
+
+`tools/verify-polish.mjs` (`npm run test:polish`) covers:
+
+- **Keyboard only:** from the start screen, through the menu and difficulty,
+  to a cleared board using only Tab, the arrows, Enter, H and U. At every step
+  every free tile is reachable with the arrows, and focus stays visible and on
+  top. On a zoomed Hard board, the focused tile always scrolls into view.
+- **Labels:** every tile has a name, a state and a cue, and the crow and raven
+  are described differently.
+- **Sound:** there is no `AudioContext` before the first gesture, matches
+  chirp, and switching Sound off silences them.
+- **Animations:** the score floats and the celebration appear with Full (and
+  with Full over an OS reduce-motion preference). They don't appear with
+  Minimal or with the OS preference, where results follow right away.
+- **Quiet game:** a full touch game with Sound off and Animations Minimal has
+  no audio, no animation elements, and the same score.
+- **Contrast:** the rendered contrast of all text is checked on the start,
+  menu, difficulty, game, pause, New Game, How to Play, Settings and results
+  screens.
 
 ## Deploying to GitHub Pages
 

@@ -16,7 +16,8 @@ import { createBoardView } from "./board-view.js";
 
 const DOUBLE_TAP_MS = 350;     // same tile again this soon = accidental double tap
 const REMOVE_MS = 320;         // match animation length (CSS .is-removing)
-const WIN_DELAY_MS = 700;      // let the last pair finish before the win screen
+const CELEBRATE_MS = 1500;     // restrained board-clear moment before results (animations on)
+const QUIET_WIN_MS = 250;      // with animations off: just let the last pair go
 
 const fileFor = (bird) => `${String(BIRD_IDS.indexOf(bird) + 1).padStart(2, "0")}-${bird}`;
 
@@ -30,7 +31,8 @@ const formatTime = (seconds) => {
  * selection, hint, shuffle, restart) while a game is in progress, so the app
  * can autosave. `snapshot` is { state, elapsedMs }.
  */
-export function createGameController({ elements, reducedMotion, onWin, onChange = () => {} }) {
+export function createGameController({ elements, reducedMotion, onWin, onChange = () => {}, sound = null }) {
+  const play = (name, opts) => sound?.play(name, opts);
   const view = createBoardView({
     viewport: elements.viewport,
     surface: elements.board,
@@ -175,6 +177,7 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     switch (result) {
       case "blocked": {
         view.nudge(index);
+        play("blocked");
         const covered = isCovered(layout.links, state.removed, index);
         say(covered ? `That ${name} is covered by another tile.` : `That ${name} is blocked on both sides.`, "warn");
         return;
@@ -183,23 +186,29 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
         state = next;
         hint = null;
         say(`${name} selected — tap its twin.`);
+        play("select");
         break;
       case "deselected":
         state = next;
         say(`${name} deselected.`);
+        play("select");
         break;
       case "mismatch":
         state = next;
         hint = null;
         say(`${birdName(state.birds[previous])} and ${name} don't match. ${name} selected.`, "warn");
         // (selectTile resets the streak on a mismatch; nothing is deducted.)
+        play("mismatch");
         break;
       case "matched":
         state = next;
         hint = null;
         lockInput(reducedMotion() ? 120 : REMOVE_MS);
         view.animateRemoval([previous, index], reducedMotion() ? 0 : REMOVE_MS);
+        if (!reducedMotion()) view.floatScore(index, `+${state.gains.at(-1).points}`);
         say(matchMessage(name), "good");
+        // A slightly different chirp per bird keeps repeated matches from droning.
+        play("match", { pitch: 0.9 + (BIRD_IDS.indexOf(state.birds[index]) % 5) * 0.05 });
         break;
       default:
         return;
@@ -223,8 +232,14 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
       finished = true;
       stopClock();
       sync();
-      say("Board cleared!", "good");
-      setTimeout(() => onWin(summary()), reducedMotion() ? 150 : WIN_DELAY_MS);
+      say("Board cleared! Well flown.", "good");
+      play("win");
+      if (reducedMotion()) {
+        setTimeout(() => onWin(summary()), QUIET_WIN_MS);
+      } else {
+        view.celebrate(CELEBRATE_MS);
+        setTimeout(() => onWin(summary()), CELEBRATE_MS);
+      }
     }
     // A stuck board is picked up by sync() → renderStuck().
   }
@@ -263,6 +278,7 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     state = result.state;
     hint = result.pair;
     if (hint) {
+      play("hint");
       say(`Hint: the two ${pluralName(birdName(state.birds[hint[0]]))} marked “?” match.`);
       view.tileElement(hint[0]).scrollIntoView({ block: "nearest", inline: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
     }
@@ -277,6 +293,7 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     if (next !== state) {
       state = next;
       sync();
+      play("shuffle");
       say("Shuffled! There's a way to finish from here — Hint will show it.", "good");
       focusBoard();
     } else {
@@ -302,14 +319,14 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     state = undo(state);
     hint = null;
     sync();
+    play("undo");
     const back = before - state.score;
     say(back ? `Put the last pair back (score ${state.score.toLocaleString()}).` : "Put the last pair back.");
   }
 
-  /** After a recovery action the panel is gone; send focus to the first free tile. */
+  /** After a recovery action the panel is gone; send focus back to the board. */
   function focusBoard() {
-    const first = elements.board.querySelector(".tile.is-free");
-    if (first) first.focus({ preventScroll: true });
+    view.focusBoard();
   }
 
   elements.hint.addEventListener("click", showHint);
@@ -321,6 +338,8 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
   return {
     start,
     load,
+    showHint,
+    undo: undoMove,
     snapshot: () => (state && !finished ? snapshot() : null),
     restart,
     pause: stopClock,

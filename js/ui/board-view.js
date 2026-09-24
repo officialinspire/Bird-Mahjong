@@ -11,7 +11,7 @@
 //   selected  lifted, thick double ring AND a ✓ badge
 //   hint      dashed ring AND a "?" badge
 
-import { birdName, birdShort } from "./bird-names.js";
+import { birdCue, birdName, birdShort } from "./bird-names.js";
 
 const TILE_RATIO = 1.28;      // tile height / width (cropped art is ~210×268)
 const DEPTH = 0.085;          // per-layer up-left shift, in tile widths
@@ -33,6 +33,7 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
   let fitW = MIN_TILE;
   let extents = null;
   let suppressClickUntil = 0;
+  let roving = -1;           // the one free tile in the Tab order (roving tabindex)
 
   // ---------- Geometry ----------
 
@@ -207,10 +208,126 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
       el.hidden = removed && !el.classList.contains("is-removing");
       const status = selected ? "selected" : free ? "free" : covered ? "covered" : "blocked";
       el.setAttribute("aria-label", `${birdName(state.birds[i])}, ${status}${hinted ? ", hint" : ""}`);
+      // A short visual cue ("slim bill, pine boughs") and the layer, for
+      // screen-reader users telling similar birds apart.
+      const layer = layout.positions[i].z;
+      el.setAttribute("aria-description", `${birdCue(state.birds[i])}${layer ? `; layer ${layer + 1}` : ""}`);
       el.setAttribute("aria-pressed", selected ? "true" : "false");
       el.setAttribute("aria-disabled", free ? "false" : "true");
-      el.tabIndex = !removed && free ? 0 : -1;
     });
+    updateRoving();
+  }
+
+  // ---------- Keyboard: one Tab stop, arrow keys between free tiles ----------
+
+  const isFreeTile = (el) => el.classList.contains("is-free") && !el.hidden && !el.classList.contains("is-removing");
+  const freeTiles = () => tiles.filter(isFreeTile);
+  const centre = (el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  };
+
+  /** Keep exactly one free tile tabbable, and don't lose keyboard focus. */
+  function updateRoving() {
+    const free = freeTiles();
+    const current = tiles[roving];
+    const hadFocus = !!current && current === document.activeElement;
+    if (!current || !isFreeTile(current)) {
+      // Nearest free tile to where the player was, else the first one.
+      let next = free[0];
+      if (current && free.length) {
+        const from = layout.positions[roving];
+        const dist = (el) => {
+          const p = layout.positions[Number(el.dataset.index)];
+          return Math.hypot(p.x - from.x, p.y - from.y);
+        };
+        next = free.reduce((best, el) => (dist(el) < dist(best) ? el : best));
+      }
+      roving = next ? Number(next.dataset.index) : -1;
+    }
+    tiles.forEach((el, i) => { el.tabIndex = i === roving ? 0 : -1; });
+    if (hadFocus && tiles[roving] && tiles[roving] !== current) tiles[roving].focus();
+  }
+
+  /** Move focus to the nearest free tile in a direction (by what's on screen). */
+  function moveFocus(from, dx, dy) {
+    const a = centre(from);
+    let best = null;
+    let bestScore = Infinity;
+    for (const el of freeTiles()) {
+      if (el === from) continue;
+      const b = centre(el);
+      const along = (b.x - a.x) * dx + (b.y - a.y) * dy;   // distance in the direction
+      const across = Math.abs((b.x - a.x) * dy) + Math.abs((b.y - a.y) * dx);
+      if (along <= 4) continue;
+      const score = along + across * 2;
+      if (score < bestScore) { bestScore = score; best = el; }
+    }
+    if (best) best.focus();
+    return best;
+  }
+
+  const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+  surface.addEventListener("keydown", (event) => {
+    const from = event.target.closest(".tile");
+    if (!from) return;
+    if (ARROWS[event.key]) {
+      event.preventDefault();
+      moveFocus(from, ...ARROWS[event.key]);
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      const free = freeTiles();
+      (event.key === "Home" ? free[0] : free[free.length - 1])?.focus();
+    }
+  });
+
+  surface.addEventListener("focusin", (event) => {
+    const tile = event.target.closest(".tile");
+    if (!tile) return;
+    roving = Number(tile.dataset.index);
+    tiles.forEach((el) => { el.tabIndex = el === tile ? 0 : -1; });
+  });
+
+  /** Focus the board's current tile (e.g. after closing the stuck offer). */
+  function focusBoard() {
+    tiles[roving]?.focus({ preventScroll: false });
+  }
+
+  // ---------- Gentle feedback ----------
+
+  /** A small "+120" that floats up from a matched tile, then disappears. */
+  function floatScore(index, text) {
+    const el = tiles[index];
+    const tag = document.createElement("span");
+    tag.className = "score-float";
+    tag.setAttribute("aria-hidden", "true");
+    tag.textContent = text;
+    tag.style.left = `${parseFloat(el.style.left) + parseFloat(el.style.width) / 2}px`;
+    tag.style.top = `${parseFloat(el.style.top)}px`;
+    surface.append(tag);
+    setTimeout(() => tag.remove(), 900);
+  }
+
+  /** Restrained board-clear moment: a soft glow and a few drifting feathers. */
+  function celebrate(duration) {
+    const host = viewport.parentElement;
+    const layer = document.createElement("div");
+    layer.className = "celebration";
+    layer.setAttribute("aria-hidden", "true");
+    const colours = ["var(--leaf)", "var(--sky)", "var(--cardinal)", "var(--rim)", "var(--leaf-dark)"];
+    for (let i = 0; i < 12; i++) {
+      const feather = document.createElement("span");
+      feather.className = "feather";
+      feather.style.setProperty("--x", `${6 + ((i * 37) % 88)}%`);
+      feather.style.setProperty("--delay", `${(i % 6) * 70}ms`);
+      feather.style.setProperty("--drift", `${(i % 2 ? 1 : -1) * (10 + (i * 7) % 30)}px`);
+      feather.style.setProperty("--turn", `${(i % 2 ? 1 : -1) * (20 + (i * 13) % 50)}deg`);
+      feather.style.background = colours[i % colours.length];
+      layer.append(feather);
+    }
+    host.append(layer);
+    setTimeout(() => layer.remove(), duration);
   }
 
   /** Play the gentle removal animation, then hide the tiles. */
@@ -306,6 +423,9 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
     sync,
     animateRemoval,
     nudge,
+    floatScore,
+    celebrate,
+    focusBoard,
     zoom,
     tileElement,
     relayout: () => relayout({ resetZoom: true }),

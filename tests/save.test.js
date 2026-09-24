@@ -274,13 +274,17 @@ describe("settings and bests with bad storage", () => {
     assert.deepEqual(loadSettings(storage), DEFAULT_SETTINGS);
     storage.setItem(SETTINGS_KEY, JSON.stringify({ motion: "sideways", tileLabels: true, streakBonus: "no" }));
     assert.deepEqual(loadSettings(storage), { ...DEFAULT_SETTINGS, tileLabels: true });
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ soundVolume: 7, sound: 1 }));
+    assert.deepEqual(loadSettings(storage), { ...DEFAULT_SETTINGS, soundVolume: 1 }, "volume clamped, bad sound flag ignored");
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ soundVolume: "loud" }));
+    assert.equal(loadSettings(storage).soundVolume, DEFAULT_SETTINGS.soundVolume);
     storage.setItem(SETTINGS_KEY, "[1,2]");
     assert.deepEqual(loadSettings(storage), DEFAULT_SETTINGS);
   });
 
   test("settings round-trip", () => {
     const { storage } = openStorage(memoryStorage());
-    const custom = { motion: "reduce", backgroundBirds: false, tileLabels: true, streakBonus: false };
+    const custom = { motion: "reduce", backgroundBirds: false, tileLabels: true, streakBonus: false, sound: false, soundVolume: 0.25 };
     saveSettings(custom, storage);
     assert.deepEqual(loadSettings(storage), custom);
   });

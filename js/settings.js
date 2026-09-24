@@ -11,6 +11,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   backgroundBirds: true,
   tileLabels: false,
   streakBonus: true,
+  sound: true,             // soft birdlike/UI sounds (start only after a tap or key)
+  soundVolume: 0.6,        // 0..1
 });
 
 /** `storage` comes from openStorage() in js/storage.js. */
@@ -32,5 +34,10 @@ export function sanitize(s) {
     backgroundBirds: bool("backgroundBirds"),
     tileLabels: bool("tileLabels"),
     streakBonus: bool("streakBonus"),
+    sound: bool("sound"),
+    soundVolume:
+      typeof s.soundVolume === "number" && Number.isFinite(s.soundVolume)
+        ? Math.min(1, Math.max(0, s.soundVolume))
+        : DEFAULT_SETTINGS.soundVolume,
   };
 }

@@ -12,6 +12,7 @@ import { createSavedGame } from "./saved-game.js";
 import { openStorage } from "./storage.js";
 import { tilesLeft } from "./game/game.js";
 import { createGameController } from "./ui/game-controller.js";
+import { createSound } from "./ui/sound.js";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -109,7 +110,14 @@ function reducedMotion() {
   return motion === "reduce" || (motion === "system" && media.matches);
 }
 
+// Sound is created lazily inside the first user gesture (see bindEvents).
+const sound = createSound({
+  enabled: () => state.settings.sound,
+  volume: () => state.settings.soundVolume,
+});
+
 const game = createGameController({
+  sound,
   elements: {
     viewport: $("#board-viewport"),
     board: $("#board"),
@@ -261,19 +269,32 @@ function syncSettingsForm() {
   form.elements.backgroundBirds.checked = state.settings.backgroundBirds;
   form.elements.tileLabels.checked = state.settings.tileLabels;
   form.elements.streakBonus.checked = state.settings.streakBonus;
+  form.elements.sound.checked = state.settings.sound;
+  form.elements.soundVolume.value = String(Math.round(state.settings.soundVolume * 100));
+  form.elements.soundVolume.disabled = !state.settings.sound;
 }
 
-function onSettingsChange() {
+function onSettingsChange(event) {
   const form = $("#settings-form");
+  const wasSound = state.settings.sound;
   state.settings = {
     motion: form.elements.motion.value,
     backgroundBirds: form.elements.backgroundBirds.checked,
     tileLabels: form.elements.tileLabels.checked,
     streakBonus: form.elements.streakBonus.checked,
+    sound: form.elements.sound.checked,
+    soundVolume: Number(form.elements.soundVolume.value) / 100,
   };
+  form.elements.soundVolume.disabled = !state.settings.sound;
   saveSettings(state.settings, storage);
   applySettings();
   game.refresh();
+  // Turning sound on (or moving the volume) is itself a gesture: play a sample.
+  if (state.settings.sound && (!wasSound || event?.target?.name === "soundVolume")) {
+    sound.unlock();
+    sound.play("match");
+  }
+  if (!state.settings.sound && wasSound) sound.silence();
 }
 
 function resetSettings() {
@@ -281,9 +302,28 @@ function resetSettings() {
   saveSettings(state.settings, storage);
   syncSettingsForm();
   applySettings();
+  game.refresh();
 }
 
 // ---------- Events ----------
+
+/** H = hint, U or Ctrl/⌘+Z = undo while playing (not while typing in a field). */
+function onGameShortcut(event) {
+  if (event.target.closest?.("input, select, textarea")) return false;
+  const key = event.key.toLowerCase();
+  const plain = !event.ctrlKey && !event.metaKey && !event.altKey;
+  if (plain && key === "h") {
+    event.preventDefault();
+    game.showHint();
+    return true;
+  }
+  if ((plain && key === "u") || ((event.ctrlKey || event.metaKey) && !event.shiftKey && key === "z")) {
+    event.preventDefault();
+    game.undo();
+    return true;
+  }
+  return false;
+}
 
 function onKeydown(event) {
   if (state.screen === "start") {
@@ -292,6 +332,7 @@ function onKeydown(event) {
     leaveStart();
     return;
   }
+  if (state.screen === "game" && !anyDialogOpen() && onGameShortcut(event)) return;
   if (event.key !== "Escape") return;
   if (state.screen === "game") {
     // The open dialog handles its own Escape (closing = resume).
@@ -385,6 +426,12 @@ renderDifficulties();
 renderScoring();
 renderContinue();
 $("#storage-note").hidden = persistent;
+
+// Audio may only start after the player does something. Every tap or key
+// press (re)unlocks it; with Sound off, unlock() does nothing at all.
+for (const type of ["pointerdown", "keydown"]) {
+  document.addEventListener(type, () => sound.unlock(), { capture: true, passive: true });
+}
 syncSettingsForm();
 applySettings();
 renderBackground($("#sky-tiles"));
