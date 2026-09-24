@@ -1,5 +1,8 @@
 // Connects the pure game logic (js/game) to the DOM board and game screen:
-// taps → selectTile, state → board classes, stats, messages, timer, win.
+// taps → selectTile, state → board classes, stats, messages, win.
+// Elapsed time is measured (paused while the game is paused) but never shown
+// during play or used in scoring — it appears only as a personal stat on the
+// results screen.
 
 import { BIRD_IDS } from "../game/birds.js";
 import {
@@ -8,7 +11,6 @@ import {
 } from "../game/game.js";
 import { getLayout } from "../game/geometry.js";
 import { isCovered } from "../game/rules.js";
-import { computeScore } from "../game/score.js";
 import { birdName } from "./bird-names.js";
 import { createBoardView } from "./board-view.js";
 
@@ -39,25 +41,21 @@ export function createGameController({ elements, reducedMotion, onWin }) {
   let last = { index: -1, at: 0 };
   let finished = false;
 
-  // Timer: accumulated ms plus the running segment, so pausing is exact.
+  // Clock: accumulated ms plus the running segment, so pausing is exact.
   let elapsedMs = 0;
   let runningSince = null;
-  let tick = null;
 
   const seconds = () => (elapsedMs + (runningSince ? performance.now() - runningSince : 0)) / 1000;
 
   function startClock() {
     if (runningSince || finished || !state) return;
     runningSince = performance.now();
-    tick = setInterval(renderStats, 1000);
   }
 
   function stopClock() {
     if (!runningSince) return;
     elapsedMs += performance.now() - runningSince;
     runningSince = null;
-    clearInterval(tick);
-    renderStats();
   }
 
   // ---------- Rendering ----------
@@ -79,8 +77,8 @@ export function createGameController({ elements, reducedMotion, onWin }) {
   function renderStats() {
     if (!state) return;
     elements.pairs.textContent = String(tilesLeft(state) / 2);
-    elements.moves.textContent = String(state.moves);
-    elements.time.textContent = formatTime(seconds());
+    elements.score.textContent = state.score.toLocaleString();
+    elements.streak.textContent = state.streak > 1 ? `×${state.streak}` : "—";
   }
 
   function say(text, tone = "info") {
@@ -90,9 +88,12 @@ export function createGameController({ elements, reducedMotion, onWin }) {
 
   // ---------- Game flow ----------
 
-  function start(difficulty, { seed } = {}) {
+  function start(difficulty, { seed, streakBonus = true } = {}) {
     layout = getLayout(difficulty.layout);
-    state = createGame(difficulty.layout, seed === undefined ? {} : { seed });
+    const options = { streakBonus };
+    if (seed !== undefined) options.seed = seed;
+    if (difficulty.birdPool) options.birdPool = difficulty.birdPool;
+    state = createGame(difficulty.layout, options);
     hint = null;
     finished = false;
     lockedUntil = 0;
@@ -100,7 +101,6 @@ export function createGameController({ elements, reducedMotion, onWin }) {
     last = { index: -1, at: 0 };
     elapsedMs = 0;
     runningSince = null;
-    clearInterval(tick);
     view.render(layout);
     sync();
     say("Tap a free bird, then its twin. Striped tiles are blocked.");
@@ -140,13 +140,14 @@ export function createGameController({ elements, reducedMotion, onWin }) {
         state = next;
         hint = null;
         say(`${birdName(state.birds[previous])} and ${name} don't match. ${name} selected.`, "warn");
+        // (selectTile resets the streak on a mismatch; nothing is deducted.)
         break;
       case "matched":
         state = next;
         hint = null;
         lockInput(reducedMotion() ? 120 : REMOVE_MS);
         view.animateRemoval([previous, index], reducedMotion() ? 0 : REMOVE_MS);
-        say(`Matched a pair of ${pluralName(name)}.`, "good");
+        say(matchMessage(name), "good");
         break;
       default:
         return;
@@ -177,6 +178,12 @@ export function createGameController({ elements, reducedMotion, onWin }) {
     }
   }
 
+  function matchMessage(name) {
+    const gain = state.gains[state.gains.length - 1];
+    const streakNote = state.streakBonus && state.streak > 1 ? ` · streak ×${state.streak}` : "";
+    return `Matched a pair of ${pluralName(name)} · +${gain.points}${streakNote}`;
+  }
+
   function pluralName(name) {
     if (name.endsWith("Goose")) return name.replace(/Goose$/, "Geese");
     if (name.endsWith("mouse")) return name.replace(/mouse$/, "mice");
@@ -185,15 +192,17 @@ export function createGameController({ elements, reducedMotion, onWin }) {
 
   function summary() {
     const secs = Math.floor(seconds());
-    const pairs = layout.positions.length / 2;
     return {
       seconds: secs,
       time: formatTime(secs),
+      pairs: layout.positions.length / 2,
       moves: state.moves,
+      score: state.score,
+      bestStreak: state.bestStreak,
+      streakBonus: state.streakBonus,
       hintsUsed: state.hintsUsed,
       shuffles: state.shuffles,
       mismatches: state.mismatches,
-      score: computeScore({ pairs, seconds: secs, hintsUsed: state.hintsUsed, shuffles: state.shuffles, mismatches: state.mismatches }),
     };
   }
 

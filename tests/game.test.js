@@ -84,7 +84,7 @@ describe("playing a game", () => {
   });
 
   test("undo puts the last pair back", () => {
-    const game = createGame("forest-edge", { seed: 4 });
+    const game = createGame("twin-groves", { seed: 4 });
     const [a, b] = game.solution[0];
     const played = removePair(game, a, b);
     const undone = undo(played);
@@ -95,7 +95,7 @@ describe("playing a game", () => {
   });
 
   test("hints point at a removable pair", () => {
-    const game = createGame("deep-woods", { seed: 9 });
+    const game = createGame("old-growth", { seed: 9 });
     const { state, pair } = useHint(game);
     assert.equal(state.hintsUsed, 1);
     assert.ok(findMatches(game).some(([a, b]) => a === pair[0] && b === pair[1]));

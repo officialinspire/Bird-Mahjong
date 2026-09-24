@@ -18,47 +18,52 @@ function block(x, y, cols, rows, z) {
   return out;
 }
 
+/** A row of `cols` tiles starting at (x, y) on layer z. */
+const row = (x, y, cols, z) => block(x, y, cols, 1, z);
+
 const RAW_LAYOUTS = {
-  // 48 tiles: 8×4 base, 6×2 middle, 2×2 cap.
+  // Easy · 24 tiles. A low diamond (rows of 2-4-6-4-2) with a small raised
+  // centre: 2×2 on layer 1 and a pair straddling it on layer 2.
   meadow: {
     name: "Meadow",
     tiles: [
-      ...block(0, 0, 8, 4, 0),
-      ...block(2, 2, 6, 2, 1),
-      ...block(6, 2, 2, 2, 2),
+      ...row(4, 0, 2, 0),
+      ...row(2, 2, 4, 0),
+      ...row(0, 4, 6, 0),
+      ...row(2, 6, 4, 0),
+      ...row(4, 8, 2, 0),
+      ...block(4, 3, 2, 2, 1),
+      { x: 5, y: 3, z: 2 },
+      { x: 5, y: 5, z: 2 },
     ],
   },
-  // 64 tiles: 8×5 base, 6×3 middle, 3×2 top set half a tile off the grid.
-  "forest-edge": {
-    name: "Forest Edge",
+  // Medium · 40 tiles. Twin groves: a 3-layer peak at each end (3×3, 2×2
+  // offset by half a tile, single top) joined by a flat 4×3 clearing.
+  "twin-groves": {
+    name: "Twin Groves",
     tiles: [
-      ...block(0, 0, 8, 5, 0),
-      ...block(2, 2, 6, 3, 1),
-      ...block(5, 3, 3, 2, 2),
+      ...block(0, 0, 3, 3, 0),
+      ...block(1, 1, 2, 2, 1),
+      { x: 2, y: 2, z: 2 },
+      ...block(6, 0, 4, 3, 0),
+      ...block(14, 0, 3, 3, 0),
+      ...block(15, 1, 2, 2, 1),
+      { x: 16, y: 2, z: 2 },
     ],
   },
-  // 72 tiles: turtle-style — 12×4 base with a wing tile on each side
-  // straddling the two middle rows, then 8×2, 4×1 and 2×1 layers.
-  "deep-woods": {
-    name: "Deep Woods",
-    tiles: [
-      ...block(0, 0, 12, 4, 0),
-      { x: -2, y: 3, z: 0 },
-      { x: 24, y: 3, z: 0 },
-      ...block(4, 2, 8, 2, 1),
-      ...block(8, 3, 4, 1, 2),
-      ...block(10, 3, 2, 1, 3),
-    ],
-  },
-  // 80 tiles: tall stack — 10×4 base, 9×3 offset by half a tile, 6×2, and a
-  // single capstone straddling four tiles.
+  // Hard · 60 tiles. A five-layer tower: 8×4 base with a wing tile on each
+  // side straddling the middle rows, then 6×2, 4×2, 2×2 and a 2-tile crown.
   "old-growth": {
     name: "Old Growth",
     tiles: [
-      ...block(0, 0, 10, 4, 0),
-      ...block(1, 1, 9, 3, 1),
-      ...block(4, 2, 6, 2, 2),
-      { x: 9, y: 3, z: 3 },
+      ...block(0, 0, 8, 4, 0),
+      { x: -2, y: 3, z: 0 },
+      { x: 16, y: 3, z: 0 },
+      ...block(2, 2, 6, 2, 1),
+      ...block(4, 2, 4, 2, 2),
+      ...block(6, 2, 2, 2, 3),
+      { x: 6, y: 3, z: 4 },
+      { x: 8, y: 3, z: 4 },
     ],
   },
 };

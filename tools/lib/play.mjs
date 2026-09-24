@@ -8,7 +8,9 @@ export const SEED = 20260924;
 
 export function solutionFor(difficultyId, seed = SEED) {
   const d = DIFFICULTIES.find((x) => x.id === difficultyId);
-  return createGame(d.layout, { seed }).solution;
+  // Must build the board exactly as the app does (same bird pool), or the
+  // seeded random stream diverges and the solution won't match the screen.
+  return createGame(d.layout, { seed, birdPool: d.birdPool ?? undefined }).solution;
 }
 
 export const tile = (i) => `#board .tile[data-index="${i}"]`;

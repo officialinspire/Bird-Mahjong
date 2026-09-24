@@ -38,7 +38,7 @@ const SCREENS = [
   { name: "start", steps: [], fits: true },
   { name: "menu", steps: ["#screen-start"] },
   { name: "difficulty", steps: ["#screen-start", "[data-go=difficulty]"] },
-  { name: "game", steps: ["#screen-start", "[data-go=difficulty]", "[data-difficulty=advanced]"], fits: true },
+  { name: "game", steps: ["#screen-start", "[data-go=difficulty]", "[data-difficulty=hard]"], fits: true },
   { name: "pause", screen: "game", steps: ["#screen-start", "[data-go=difficulty]", "[data-difficulty=easy]", "#btn-pause"], root: "#pause-dialog" },
   { name: "help", steps: ["#screen-start", "#screen-menu [data-go=help]"] },
   { name: "settings", steps: ["#screen-start", "#screen-menu [data-go=settings]"] },
@@ -179,7 +179,7 @@ async function main() {
     await page.click("#screen-menu [data-go=help]");
     await page.keyboard.press("Escape"); steps.push(["Escape on help → menu", await screenName(), "menu"]);
     await page.click("[data-go=difficulty]");
-    await page.click("[data-difficulty=intermediate]");
+    await page.click("[data-difficulty=medium]");
     await page.keyboard.press("Escape");
     steps.push(["Escape in game → paused", String(await page.evaluate(() => document.getElementById("pause-dialog").open)), "true"]);
     await page.keyboard.press("Escape");

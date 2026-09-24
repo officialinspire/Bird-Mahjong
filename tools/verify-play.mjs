@@ -15,7 +15,9 @@
 //   * zoom in/out/fit, mouse-drag panning that doesn't select, touch swipe
 //     panning that doesn't select
 //   * a full game won by touch taps (zoomed phone) and one by mouse clicks,
-//     ending on the results screen
+//     ending on the results screen with the score (100 per pair plus streak
+//     bonus); no clock is shown during play
+//   * best scores are kept per difficulty and shown on the picker
 //
 // Usage: node tools/verify-play.mjs [screenshot-dir]
 
@@ -25,6 +27,7 @@ import { launchBrowser, serve } from "./lib/serve.mjs";
 import { SEED, afterMatch, playPairs, solutionFor, startDifficulty, tile } from "./lib/play.mjs";
 import { DIFFICULTIES } from "../js/config.js";
 import { MIN_TILE } from "../js/ui/board-view.js";
+import { maxScore } from "../js/game/score.js";
 
 const SHOT_DIR = process.argv[2] ? path.resolve(process.argv[2]) : null;
 let failures = 0;
@@ -55,7 +58,8 @@ const boardState = (page) =>
       selected: tiles.filter((t) => t.classList.contains("is-selected")).map((t) => Number(t.dataset.index)),
       visible: tiles.filter((t) => !t.hidden).length,
       pairs: document.getElementById("stat-pairs").textContent,
-      moves: document.getElementById("stat-moves").textContent,
+      score: document.getElementById("stat-score").textContent,
+      streak: document.getElementById("stat-streak").textContent,
       message: document.getElementById("game-message").textContent,
     };
   });
@@ -174,9 +178,9 @@ async function interactions(browser, url, name, options, input) {
     return null;
   });
   if (felt) await pressAt(felt.x, felt.y);
-  await press("#stat-moves");
+  await press("#stat-score");
   s = await boardState(page);
-  check(!!felt && s.selected[0] === a && s.moves === "0", "background taps don't change the selection");
+  check(!!felt && s.selected[0] === a && s.score === "0", "background taps don't change the selection");
 
   // Mismatch moves the selection.
   const mm = await mismatchPair(page);
@@ -191,12 +195,12 @@ async function interactions(browser, url, name, options, input) {
   await press(tile(b));
   await afterMatch(page, a, b);
   s = await boardState(page);
-  check(s.pairs === "23" && s.moves === "1" && /Matched/.test(s.message), "matching removes both tiles and counts down pairs", `${s.pairs} pairs, ${s.moves} moves`);
+  check(s.pairs === "11" && s.score === "100" && /Matched.*\+100/.test(s.message), "matching removes both tiles, counts down pairs and scores +100", `${s.pairs} pairs, score ${s.score}, "${s.message}"`);
 
   // Undo, hint, shuffle.
   await press("#btn-undo");
   s = await boardState(page);
-  check(s.pairs === "24" && s.visible === 48, "undo restores the pair");
+  check(s.pairs === "12" && s.visible === 24 && s.score === "0", "undo restores the pair and its points");
   await press("#btn-hint");
   const hinted = await page.evaluate(() => {
     const h = [...document.querySelectorAll("#board .tile.is-hint")];
@@ -216,10 +220,10 @@ async function interactions(browser, url, name, options, input) {
 }
 
 async function zoomAndPan(browser, url) {
-  console.log("zoom and pan (320px phone, Insane)");
+  console.log("zoom and pan (320px phone, Hard)");
   // Touch: zoom controls, swipe to pan without selecting.
   {
-    const { context, page } = await openGame(browser, url, SMALL_PHONE, "insane");
+    const { context, page } = await openGame(browser, url, SMALL_PHONE, "hard");
     const vp = "#board-viewport";
     const read = () => page.evaluate(() => {
       const v = document.getElementById("board-viewport");
@@ -258,7 +262,7 @@ async function zoomAndPan(browser, url) {
   }
   // Mouse: drag to pan must not select the tile under the pointer.
   {
-    const { context, page } = await openGame(browser, url, { viewport: { width: 320, height: 568 } }, "insane");
+    const { context, page } = await openGame(browser, url, { viewport: { width: 320, height: 568 } }, "hard");
     const free = await page.evaluate(() => {
       const t = [...document.querySelectorAll("#board .tile.is-free")].find((x) => {
         const r = x.getBoundingClientRect();
@@ -288,14 +292,77 @@ async function fullGame(browser, url, name, options, difficulty, input) {
   await page.waitForSelector("#screen-results:not([hidden])", { timeout: 5000 });
   const r = await page.evaluate(() => ({
     title: document.getElementById("results-title").textContent,
-    moves: document.getElementById("result-moves").textContent,
+    pairs: document.getElementById("result-pairs").textContent,
+    streak: document.getElementById("result-streak").textContent,
     time: document.getElementById("result-time").textContent,
     score: document.getElementById("result-score").textContent,
+    best: document.getElementById("result-best").textContent,
   }));
   const pairs = solutionFor(difficulty).length;
-  check(r.moves === String(pairs) && /\d/.test(r.score) && /\d:\d\d/.test(r.time) && errors.length === 0,
-    `${name}: won ${difficulty} by ${input} in ${((Date.now() - t0) / 1000).toFixed(1)}s → ${r.title} ${r.moves} moves, ${r.time}, score ${r.score}`, errors.join("; "));
+  // A clean clear: every pair in one streak → 100/pair + capped streak bonus.
+  const expected = maxScore(pairs).toLocaleString("en-US");
+  check(r.pairs === String(pairs) && r.score === expected && r.streak === `×${pairs}` && /\d:\d\d/.test(r.time) && errors.length === 0,
+    `${name}: won ${difficulty} by ${input} in ${((Date.now() - t0) / 1000).toFixed(1)}s → ${r.score} points (${r.pairs} pairs, streak ${r.streak}), time ${r.time}`,
+    `expected ${expected}; ${errors.join("; ")}`);
+  check(/best/i.test(r.best), `${name}: results show the ${difficulty} best score`, r.best);
   if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `play-${name}-results.png`) });
+  await context.close();
+}
+
+async function bestScores(browser, url) {
+  console.log("best scores and time");
+  const context = await browser.newContext({ ...DESKTOP, reducedMotion: "reduce" });
+  const page = await context.newPage();
+  await page.goto(`${url}?seed=${SEED}`, { waitUntil: "networkidle" });
+  await startDifficulty(page, "easy");
+
+  const clock = await page.evaluate(() => ({
+    statTime: !!document.getElementById("stat-time"),
+    text: document.querySelector("#screen-game .game-stats").textContent,
+  }));
+  check(!clock.statTime && !/\d:\d\d/.test(clock.text), "no clock is shown during play", clock.text);
+
+  // Win Easy once with a mismatch mid-streak (streak broken → lower score)...
+  const pairs = solutionFor("easy");
+  await playPairs(page, pairs.slice(0, 3));
+  const mm = await mismatchPair(page);
+  await page.click(tile(mm[0]));
+  await page.click(tile(mm[1]));           // mismatch: mm[1] is now selected
+  await page.waitForTimeout(400);          // past the double-tap window
+  await page.click(tile(mm[1]));           // deliberate deselect
+  const selected = await page.evaluate(() => document.querySelectorAll("#board .tile.is-selected").length);
+  check(selected === 0, "a deliberate second tap (after the double-tap window) deselects");
+  await page.waitForTimeout(400);          // the next tap may be on that same tile
+  await playPairs(page, pairs.slice(3));
+  await page.waitForSelector("#screen-results:not([hidden])");
+  const first = await page.evaluate(() => ({ score: document.getElementById("result-score").textContent, best: document.getElementById("result-best").textContent }));
+  check(/First Easy clear/.test(first.best) && first.score !== maxScore(12).toLocaleString("en-US"),
+    `first Easy clear becomes the best (${first.score}, below the ${maxScore(12)} maximum after a broken streak)`, first.best);
+
+  // Picker shows Easy's best only.
+  await page.click("#screen-results [data-go=menu]");
+  await page.click("#screen-menu [data-go=difficulty]");
+  const picker = await page.evaluate(() => Object.fromEntries(
+    [...document.querySelectorAll(".difficulty-option")].map((b) => [b.dataset.difficulty, b.querySelector(".difficulty-best").textContent])));
+  check(picker.easy === `Best score ${first.score}` && picker.medium === "Not cleared yet" && picker.hard === "Not cleared yet",
+    "the picker shows a separate best for each difficulty", JSON.stringify(picker));
+
+  // Win Medium: its best is separate from Easy's.
+  await page.goto(`${url}?seed=${SEED}`, { waitUntil: "networkidle" });
+  await startDifficulty(page, "medium");
+  await playPairs(page, solutionFor("medium"));
+  await page.waitForSelector("#screen-results:not([hidden])");
+  const medium = await page.evaluate(() => document.getElementById("result-best").textContent);
+  check(/First Medium clear/.test(medium), "Medium keeps its own best", medium);
+
+  // Replay the same Easy board cleanly: higher score → new best.
+  await page.goto(`${url}?seed=${SEED}`, { waitUntil: "networkidle" });
+  await startDifficulty(page, "easy");
+  await playPairs(page, pairs);
+  await page.waitForSelector("#screen-results:not([hidden])");
+  const second = await page.evaluate(() => ({ best: document.getElementById("result-best").textContent, flag: document.getElementById("result-best").dataset.newBest, note: document.getElementById("results-note").textContent }));
+  check(second.flag === "true" && /New best score for Easy/.test(second.best), "a higher Easy score replaces the Easy best", second.best);
+  check(/never affects your score/.test(second.note), "time is presented as a personal stat only", second.note);
   await context.close();
 }
 
@@ -309,8 +376,9 @@ async function main() {
   await interactions(browser, url, "desktop", DESKTOP, "mouse");
   await zoomAndPan(browser, url);
   console.log("full games");
-  await fullGame(browser, url, "phone-touch", SMALL_PHONE, "insane", "touch");
-  await fullGame(browser, url, "desktop-mouse", DESKTOP, "advanced", "mouse");
+  await fullGame(browser, url, "phone-touch", SMALL_PHONE, "hard", "touch");
+  await fullGame(browser, url, "desktop-mouse", DESKTOP, "medium", "mouse");
+  await bestScores(browser, url);
 
   await browser.close();
   server.close();

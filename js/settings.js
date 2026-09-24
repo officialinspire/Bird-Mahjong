@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   motion: "system",        // "system" | "reduce" | "full"
   backgroundBirds: true,
   tileLabels: false,
+  streakBonus: true,
 });
 
 export function loadSettings() {
@@ -31,5 +32,6 @@ function sanitize(s) {
     motion: ["system", "reduce", "full"].includes(s.motion) ? s.motion : DEFAULT_SETTINGS.motion,
     backgroundBirds: Boolean(s.backgroundBirds),
     tileLabels: Boolean(s.tileLabels),
+    streakBonus: Boolean(s.streakBonus),
   };
 }

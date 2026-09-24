@@ -91,11 +91,12 @@ export function assignBirds(tileCount, sequence, pairBirds, rng) {
 }
 
 /**
- * Generate a starting board for a preset layout.
+ * Generate a starting board for a preset layout. Birds are `birdIds` if
+ * given, otherwise a random selection from `birdPool` (default: all birds).
  * Returns `{ layoutId, seed, birdIds, birds, solution }` where `birds[i]` is
  * the bird on tile i and `solution` is a known winning list of pairs.
  */
-export function generateBoard(layoutId, { seed = randomSeed(), birdIds = null } = {}) {
+export function generateBoard(layoutId, { seed = randomSeed(), birdIds = null, birdPool = BIRD_IDS } = {}) {
   const layout = getLayout(layoutId);
   const tileCount = layout.positions.length;
   if (tileCount % COPIES_PER_BIRD !== 0) {
@@ -103,7 +104,10 @@ export function generateBoard(layoutId, { seed = randomSeed(), birdIds = null } 
   }
   const birdCount = tileCount / COPIES_PER_BIRD;
   const rng = createRng(seed);
-  const chosen = birdIds ? birdIds.slice() : shuffled(BIRD_IDS, rng).slice(0, birdCount);
+  if (!birdIds && birdPool.length < birdCount) {
+    throw new Error(`layout "${layoutId}" needs ${birdCount} birds but the pool has ${birdPool.length}`);
+  }
+  const chosen = birdIds ? birdIds.slice() : shuffled(birdPool, rng).slice(0, birdCount);
   if (chosen.length !== birdCount || new Set(chosen).size !== birdCount) {
     throw new Error(`layout "${layoutId}" needs ${birdCount} distinct birds, got ${chosen.length}`);
   }

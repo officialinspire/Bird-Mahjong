@@ -77,18 +77,21 @@ tile, and the contact sheet labels each crop with its number, name and ID.
 The flow is the same as our Sudoku and Deja Vu games:
 
 **Start** (touch, click or any key) → **Main menu** → **New Game** →
-**Difficulty** (Easy · Meadow, Intermediate · Forest Edge, Advanced · Deep
-Woods, Insane · Old Growth) → **Game** → **Results**. **How to Play** and
+**Difficulty** (Easy · Meadow, Medium · Twin Groves, Hard · Old Growth) →
+**Game** → **Results**. **How to Play** and
 **Settings** open from the menu; each has a ← Menu button.
 
-- **Game** has a header (☰ menu, difficulty, pause), stats (pairs left, moves,
-  time), a status line, the board and a Hint / Shuffle / Undo toolbar. The ☰
-  button pauses rather than leaving, so a stray tap can't end a game.
-- **Results** shows time, moves, hints and score once the board is cleared.
+- **Game** has a header (☰ menu, difficulty, pause), stats (pairs left, score,
+  streak), a status line, the board and a Hint / Shuffle / Undo toolbar. The ☰
+  button pauses rather than leaving, so a stray tap can't end a game. No clock
+  is shown during play.
+- **Results** shows the score, your best score for that difficulty (★ when
+  it's a new best), pairs, best streak, and your time and fastest time as
+  personal stats.
 - **Escape** pauses in-game and goes back to the menu from any other screen.
 - **Settings** (saved in `localStorage`): Motion (Match device / Reduced /
-  Full), floating background birds on/off, and short bird-name labels on
-  tiles.
+  Full), floating background birds on/off, short bird-name labels on tiles,
+  and the streak bonus on/off.
 - **Continue** stays disabled until there is a saved game to resume.
 - The Sudoku and Deja Vu intro video and INSPIRE logo aren't used here, because
   this repo doesn't include them. Add the files to reuse the intro step.
@@ -182,15 +185,43 @@ browser and in Node tests.
 
 **Layouts**
 
-| Difficulty | Layout | Tiles | Birds | Shape |
-|------------|--------|-------|-------|-------|
-| Easy | `meadow` | 48 | 12 | 8×4 base, 6×2, 2×2 |
-| Intermediate | `forest-edge` | 64 | 16 | 8×5 base, 6×3, half-offset 3×2 |
-| Advanced | `deep-woods` | 72 | 18 | turtle: 12×4 base plus side wings, 8×2, 4×1, 2×1 |
-| Insane | `old-growth` | 80 | 20 | 10×4 base, half-offset 9×3, 6×2, capstone |
+| Difficulty | Layout | Tiles | Birds | Layers (tiles per layer) | Shape |
+|------------|--------|-------|-------|--------------------------|-------|
+| Easy | `meadow` | 24 | 6 | 3 (18/4/2) | a low diamond (rows of 2-4-6-4-2) with a small raised centre |
+| Medium | `twin-groves` | 40 | 10 | 3 (30/8/2) | two 3-layer peaks at opposite ends of a flat 4×3 clearing |
+| Hard | `old-growth` | 60 | 15 | 5 (34/12/8/4/2) | a tall tower: 8×4 base with side wings, then 6×2, 4×2, 2×2 and a 2-tile crown |
 
-Every bird appears exactly four times, so the largest board holds 80 tiles
-(20 birds × 4).
+Every bird appears exactly four times.
+
+**Easy uses visually distinct birds.** Easy draws its 6 birds from
+`EASY_BIRDS`, a pool of 8 with clearly different colours and silhouettes:
+cardinal, blue jay, robin, wood duck, hummingbird, Canada goose, bald eagle and
+great blue heron. `LOOKALIKE_GROUPS` in `js/game/birds.js` lists birds that are
+easy to confuse: the dark crow, raven and turkey; the two owls; the small grey
+songbirds; the brown-and-white raptors; the blue crests; and the red crests. The
+Easy pool has at most one bird from each group and never the crow or raven.
+Medium and Hard draw from all 20.
+
+**Scoring** (`js/game/score.js`) has no countdown, no lives, no failure screen
+and no time penalty.
+
+- Every pair is worth **+100**.
+- **Streak bonus** (optional; on by default, switch it off in Settings):
+  matching pairs in a row without a mismatch adds +10 for the second pair, +20
+  for the third, and so on, up to +50 a pair. A mismatch resets the streak but
+  never subtracts points.
+- Hints and shuffles are free. Undo takes back exactly the points and streak
+  from that pair.
+- Elapsed time is measured (pausing stops it) but is shown only on the results
+  screen, as a personal stat.
+
+A clean clear therefore scores 1,650 on Easy, 2,850 on Medium and 4,350 on
+Hard; with the streak bonus off, it's a flat 100 per pair.
+
+**Personal bests** (`js/best-scores.js`) are kept in `localStorage` separately
+for each difficulty: the best score, the fastest time and the number of
+clears. The difficulty picker shows each difficulty's best score, and results
+show whether you beat it. If storage is blocked, bests last for the session.
 
 **Solvable by construction.** `generateBoard` never deals birds at random and
 hopes. Instead it:
@@ -209,8 +240,14 @@ Run `npm run test:logic`, or `node --test "tests/*.test.js"`, to run the tests.
 They need no dependencies. The tests cover:
 
 - blocked, covered and free tiles, including half-tile offsets, and matching
-- 200 seeds per preset: exactly four copies per bird, and the solution replayed
-  independently through the rules
+- 200 seeds per layout, plus 300 per difficulty: exactly four copies per bird,
+  and the solution replayed independently through the rules
+- difficulty sizes (24/6, 40/10, 60/15), and that the three layouts really
+  differ in shape
+- Easy never deals the crow or raven, or two look-alikes
+- scoring: +100 per pair, the capped streak bonus and the switch that turns it
+  off, no time or help penalties, and undo taking back exact points
+- personal bests per difficulty, including corrupt and blocked storage
 - dead-end backtracking, and provably unsolvable geometries
 - select, deselect, mismatch, match, undo, hint, stuck and shuffle
 
@@ -279,19 +316,25 @@ npm test                         # logic, crops, layout and play checks
 `tools/verify-play.mjs` plays real seeded games in Chromium, working out each
 board's solution from the same pure logic. It checks:
 
-- **Readability:** on six viewports × four difficulties, tiles are at least
+- **Readability:** on six viewports × three difficulties, tiles are at least
   40px wide, zoom appears only when a board can't fit, the page never
   scrolls, and every free tile can actually be hit (not hidden under another
   tile).
 - **Touch (390px phone) and mouse (desktop):** blocked taps don't select and
   show the stripe pattern and ARIA state; selection shows the ✓ badge; the
   double-tap guard works; background taps are ignored. Also mismatch, match
-  and the pairs-left counter, undo, hint and shuffle.
-- **Zoom and pan (320px phone, Insane):** Fit, +, −, a zoom maximum, a real
+  (+100 and the pairs-left counter), undo (points returned), hint and
+  shuffle.
+- **Zoom and pan (320px phone, Hard):** Fit, +, −, a zoom maximum, a real
   touch swipe that pans without selecting, and a mouse drag that pans without
   selecting.
-- **Full games:** Insane won by touch taps on a 320px phone, and Advanced won
-  by mouse clicks on desktop, both ending on the results screen.
+- **Full games:** Hard won by touch taps on a 320px phone, and Medium won by
+  mouse clicks on desktop. Both end on the results screen with the maximum
+  clean-clear score.
+- **Bests and time:** no clock is shown during play. A first clear sets the
+  best, and the picker shows it only for that difficulty. Medium keeps its own
+  best, and a higher Easy score replaces the Easy best. Time is labelled as
+  personal only.
 
 ```sh
 npm run test:play -- shots/      # optional dir for screenshots

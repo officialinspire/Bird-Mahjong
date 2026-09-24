@@ -7,6 +7,7 @@ import { DIFFICULTIES, SMALL_TILE_DIR, difficultyById } from "./config.js";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings.js";
 import { renderBackground } from "./background.js";
 import { SCORING } from "./game/score.js";
+import { createBestScores } from "./best-scores.js";
 import { createGameController } from "./ui/game-controller.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -22,6 +23,7 @@ const state = {
 function showScreen(name) {
   const next = document.getElementById(`screen-${name}`);
   if (!next) return;
+  if (name === "difficulty") renderDifficulties(); // fresh best scores
   const leaving = state.screen;
   state.screen = name; // set first: closing the pause dialog checks it
   if ($("#pause-dialog").open) $("#pause-dialog").close();
@@ -70,7 +72,12 @@ function renderDifficulties() {
       const detail = document.createElement("span");
       detail.textContent = `${d.tiles} tiles · ${d.birds} birds`;
 
-      button.append(icon, title, detail);
+      const best = document.createElement("span");
+      best.className = "difficulty-best";
+      const record = bests.get(d.id);
+      best.textContent = record ? `Best score ${record.score.toLocaleString()}` : "Not cleared yet";
+
+      button.append(icon, title, detail, best);
       li.append(button);
       return li;
     })
@@ -78,6 +85,11 @@ function renderDifficulties() {
 }
 
 // ---------- Game ----------
+
+// Reading `localStorage` itself can throw when site data is blocked.
+const bests = createBestScores((() => {
+  try { return window.localStorage; } catch { return undefined; }
+})());
 
 const media = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -92,8 +104,8 @@ const game = createGameController({
     board: $("#board"),
     message: $("#game-message"),
     pairs: $("#stat-pairs"),
-    moves: $("#stat-moves"),
-    time: $("#stat-time"),
+    score: $("#stat-score"),
+    streak: $("#stat-streak"),
     hint: $("#btn-hint"),
     shuffle: $("#btn-shuffle"),
     undo: $("#btn-undo"),
@@ -120,22 +132,33 @@ function startGame(difficultyId) {
   $("#game-difficulty").textContent = `${d.name} · ${d.habitat}`;
   // Show the screen first so the board can measure its viewport.
   showScreen("game");
-  game.start(d, { seed: pendingSeed });
+  game.start(d, { seed: pendingSeed, streakBonus: state.settings.streakBonus });
   pendingSeed = undefined;
 }
 
 function showResults(summary) {
   const d = difficultyById(state.difficulty);
   $("#results-difficulty").textContent = `${d.name} · ${d.habitat}`;
-  $("#result-time").textContent = summary.time;
-  $("#result-moves").textContent = String(summary.moves);
-  $("#result-hints").textContent = String(summary.hintsUsed);
+  const { isNewBest, isNewBestTime, previous, best } = bests.record(d.id, summary);
   $("#result-score").textContent = summary.score.toLocaleString();
-  const extras = [];
-  if (summary.shuffles) extras.push(`${summary.shuffles} shuffle${summary.shuffles === 1 ? "" : "s"}`);
-  if (summary.mismatches) extras.push(`${summary.mismatches} mismatch${summary.mismatches === 1 ? "" : "es"}`);
-  $("#results-note").textContent = extras.length ? `Including ${extras.join(" and ")}.` : "A clean clear — no shuffles or mismatches.";
+  $("#result-best").textContent = !previous
+    ? `First ${d.name} clear — that's your best score so far.`
+    : isNewBest
+      ? `New best score for ${d.name}! (was ${previous.score.toLocaleString()})`
+      : `Your best on ${d.name}: ${best.score.toLocaleString()}`;
+  $("#result-best").dataset.newBest = isNewBest ? "true" : "false";
+  $("#result-pairs").textContent = String(summary.pairs);
+  $("#result-streak").textContent = summary.bestStreak > 1 ? `×${summary.bestStreak}` : "—";
+  $("#result-time").textContent = summary.time;
+  $("#result-fastest").textContent = formatSeconds(best.bestTime);
+  $("#results-note").textContent =
+    `Time is just for you — it never affects your score.${isNewBestTime && previous ? " That's your fastest yet." : ""}`;
   showScreen("results");
+}
+
+function formatSeconds(total) {
+  if (total === null || total === undefined) return "—";
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
 function openPause() {
@@ -159,6 +182,7 @@ function syncSettingsForm() {
   form.elements.motion.value = state.settings.motion;
   form.elements.backgroundBirds.checked = state.settings.backgroundBirds;
   form.elements.tileLabels.checked = state.settings.tileLabels;
+  form.elements.streakBonus.checked = state.settings.streakBonus;
 }
 
 function onSettingsChange() {
@@ -167,6 +191,7 @@ function onSettingsChange() {
     motion: form.elements.motion.value,
     backgroundBirds: form.elements.backgroundBirds.checked,
     tileLabels: form.elements.tileLabels.checked,
+    streakBonus: form.elements.streakBonus.checked,
   };
   saveSettings(state.settings);
   applySettings();
@@ -256,8 +281,10 @@ function widthBand() {
 function renderScoring() {
   const s = SCORING;
   $("#scoring-text").textContent =
-    `${s.perPair} points per pair, minus ${s.perSecond} per second, ${s.perHint} per hint, ` +
-    `${s.perShuffle} per shuffle and ${s.perMismatch} per mismatch.`;
+    `${s.perPair} points for every pair. Match pairs in a row without a mismatch for a small streak bonus: ` +
+    `+${s.streakStep} for the second in a row, +${s.streakStep * 2} for the third, up to +${s.streakCap} a pair ` +
+    `(you can turn this off in Settings). Time, hints and shuffles never cost points; Undo just takes back ` +
+    `that pair's points until you match it again.`;
 }
 
 renderDifficulties();

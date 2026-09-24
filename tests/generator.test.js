@@ -48,8 +48,8 @@ describe("preset layouts", () => {
     assert.ok(problems.some((p) => p.includes("not supported")));
   });
 
-  test("the deep-woods wing tiles block the middle-row ends", () => {
-    const { positions, links } = getLayout("deep-woods");
+  test("the old-growth wing tiles block the middle-row ends", () => {
+    const { positions, links } = getLayout("old-growth");
     const wing = positions.find((p) => p.x === -2).index;
     const rowEnds = positions.filter((p) => p.z === 0 && p.x === 0 && (p.y === 2 || p.y === 4));
     assert.equal(rowEnds.length, 2);
@@ -82,23 +82,23 @@ describe("generated boards", () => {
   }
 
   test("the same seed gives the same board; different seeds differ", () => {
-    const a = generateBoard("forest-edge", { seed: 42 });
-    const b = generateBoard("forest-edge", { seed: 42 });
-    const c = generateBoard("forest-edge", { seed: 43 });
+    const a = generateBoard("twin-groves", { seed: 42 });
+    const b = generateBoard("twin-groves", { seed: 42 });
+    const c = generateBoard("twin-groves", { seed: 43 });
     assert.deepEqual(a.birds, b.birds);
     assert.deepEqual(a.solution, b.solution);
     assert.notDeepEqual(a.birds, c.birds);
   });
 
   test("an explicit bird set is honoured", () => {
-    const birdIds = BIRD_IDS.slice(0, 12);
+    const birdIds = BIRD_IDS.slice(0, 6);
     const board = generateBoard("meadow", { seed: 7, birdIds });
     assert.deepEqual([...new Set(board.birds)].sort(), birdIds.slice().sort());
   });
 
   test("the wrong number of birds is rejected", () => {
-    assert.throws(() => generateBoard("meadow", { seed: 1, birdIds: BIRD_IDS.slice(0, 11) }), /needs 12/);
-    assert.throws(() => generateBoard("meadow", { seed: 1, birdIds: [...BIRD_IDS.slice(0, 11), BIRD_IDS[0]] }), /distinct/);
+    assert.throws(() => generateBoard("meadow", { seed: 1, birdIds: BIRD_IDS.slice(0, 5) }), /needs 6/);
+    assert.throws(() => generateBoard("meadow", { seed: 1, birdIds: [...BIRD_IDS.slice(0, 5), BIRD_IDS[0]] }), /distinct/);
   });
 
   test("unknown layouts are rejected", () => {
@@ -137,8 +137,10 @@ describe("removal-sequence search", () => {
   test("respects tiles already removed", () => {
     const layout = getLayout("meadow");
     const removed = layout.positions.map((p) => p.z === 2); // cap already gone
+    const gone = removed.filter(Boolean).length;
+    assert.ok(gone > 0 && gone % 2 === 0);
     const seq = findRemovalSequence(layout, createRng(5), removed);
-    assert.equal(seq.length, (layout.positions.length - 4) / 2);
+    assert.equal(seq.length, (layout.positions.length - gone) / 2);
     assert.ok(seq.flat().every((i) => !removed[i]));
     assert.equal(replay(layout, layout.positions.map(() => "x"), seq, removed), null);
   });

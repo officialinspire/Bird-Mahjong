@@ -3,15 +3,20 @@
 //
 // State shape (plain data, JSON-serialisable for autosave):
 //   { layoutId, seed, birds[], removed[], selected, moves, mismatches,
-//     hintsUsed, shuffles, history: [[a, b], ...], solution: [[a, b], ...] }
+//     hintsUsed, shuffles, score, streak, bestStreak, streakBonus,
+//     history: [[a, b], ...], gains: [{ points, streak, bestStreak }, ...],
+//     solution: [[a, b], ...] }
+// `gains[k]` records what the k-th removal earned and the streak values
+// before it, so undo can take the points back exactly.
 
 import { generateBoard, redealRemaining } from "./generator.js";
 import { getLayout } from "./geometry.js";
 import { createRng, randomSeed } from "./rng.js";
 import { availableMatches, canRemovePair, isFree } from "./rules.js";
+import { pointsForMatch } from "./score.js";
 
-export function createGame(layoutId, { seed = randomSeed(), birdIds } = {}) {
-  const board = generateBoard(layoutId, { seed, birdIds });
+export function createGame(layoutId, { seed = randomSeed(), birdIds, birdPool, streakBonus = true } = {}) {
+  const board = generateBoard(layoutId, { seed, birdIds, birdPool });
   return Object.freeze({
     layoutId,
     seed,
@@ -22,7 +27,12 @@ export function createGame(layoutId, { seed = randomSeed(), birdIds } = {}) {
     mismatches: 0,
     hintsUsed: 0,
     shuffles: 0,
+    score: 0,
+    streak: 0,
+    bestStreak: 0,
+    streakBonus,
     history: Object.freeze([]),
+    gains: Object.freeze([]),
     solution: board.solution,
   });
 }
@@ -57,12 +67,18 @@ export function removePair(state, a, b) {
   }
   const removed = state.removed.slice();
   removed[a] = removed[b] = true;
+  const streak = state.streak + 1;
+  const points = pointsForMatch(streak, state.streakBonus);
   return Object.freeze({
     ...state,
     removed: Object.freeze(removed),
     selected: null,
     moves: state.moves + 1,
+    score: state.score + points,
+    streak,
+    bestStreak: Math.max(state.bestStreak, streak),
     history: Object.freeze([...state.history, [a, b]]),
+    gains: Object.freeze([...state.gains, Object.freeze({ points, streak: state.streak, bestStreak: state.bestStreak })]),
   });
 }
 
@@ -90,15 +106,16 @@ export function selectTile(state, i) {
     return { state: removePair(state, state.selected, i), result: "matched" };
   }
   return {
-    state: Object.freeze({ ...state, selected: i, mismatches: state.mismatches + 1 }),
+    state: Object.freeze({ ...state, selected: i, mismatches: state.mismatches + 1, streak: 0 }),
     result: "mismatch",
   };
 }
 
-/** Put the last removed pair back. */
+/** Put the last removed pair back, along with the points it earned. */
 export function undo(state) {
   if (state.history.length === 0) return state;
   const [a, b] = state.history[state.history.length - 1];
+  const gain = state.gains[state.gains.length - 1];
   const removed = state.removed.slice();
   removed[a] = removed[b] = false;
   return Object.freeze({
@@ -106,7 +123,11 @@ export function undo(state) {
     removed: Object.freeze(removed),
     selected: null,
     moves: state.moves - 1,
+    score: state.score - gain.points,
+    streak: gain.streak,
+    bestStreak: gain.bestStreak,
     history: Object.freeze(state.history.slice(0, -1)),
+    gains: Object.freeze(state.gains.slice(0, -1)),
   });
 }
 
@@ -132,5 +153,6 @@ export function shuffleRemaining(state, seed = randomSeed()) {
     selected: null,
     shuffles: state.shuffles + 1,
     history: Object.freeze([]),
+    gains: Object.freeze([]),
   });
 }

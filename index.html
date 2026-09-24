@@ -85,8 +85,8 @@
         <div class="game-side">
           <dl class="game-stats" aria-label="Current game">
             <div><dt>Pairs left</dt><dd id="stat-pairs">—</dd></div>
-            <div><dt>Moves</dt><dd id="stat-moves">0</dd></div>
-            <div><dt>Time</dt><dd id="stat-time">0:00</dd></div>
+            <div><dt>Score</dt><dd id="stat-score">0</dd></div>
+            <div><dt>Streak</dt><dd id="stat-streak">—</dd></div>
           </dl>
 
           <div class="game-tools" role="toolbar" aria-label="Game tools">
@@ -132,8 +132,8 @@
         <ol class="steps">
           <li><strong>Match pairs.</strong> Tap two identical bird tiles to remove them from the board.</li>
           <li><strong>Only free tiles move.</strong> A tile is free when nothing sits on top of it and its left or right side is open.</li>
-          <li><strong>Clear the woodland.</strong> Remove every tile to win. Fewer moves and a quicker time earn a better score.</li>
-          <li><strong>Stuck?</strong> Use Hint to spot a free pair, Shuffle to rearrange the remaining tiles, or Undo to take back a move.</li>
+          <li><strong>Clear the woodland.</strong> Remove every tile to win. There's no clock to beat and no way to lose. Take your time.</li>
+          <li><strong>Stuck?</strong> Use Hint to spot a free pair, Shuffle to rearrange the remaining tiles, or Undo to take back a move. None of them cost points.</li>
         </ol>
 
         <h2>Reading the board</h2>
@@ -199,6 +199,13 @@
             </span>
             <input type="checkbox" name="tileLabels" role="switch">
           </label>
+          <label class="setting setting--toggle">
+            <span>
+              <strong>Streak bonus</strong>
+              <span class="setting-hint">A little extra for matching pairs in a row. Applies from your next board.</span>
+            </span>
+            <input type="checkbox" name="streakBonus" role="switch">
+          </label>
           <button type="button" class="btn btn--quiet" id="btn-reset-settings">Reset to defaults</button>
         </form>
       </div>
@@ -214,11 +221,13 @@
         <p class="eyebrow">Woodland cleared</p>
         <h1 id="results-title">Well flown!</h1>
         <p id="results-difficulty" class="results-difficulty">Easy</p>
+        <p class="results-score"><span class="results-score-value" id="result-score">0</span> points</p>
+        <p class="results-best" id="result-best" role="status"></p>
         <dl class="results-metrics">
-          <div><dt>Time</dt><dd id="result-time">—</dd></div>
-          <div><dt>Moves</dt><dd id="result-moves">—</dd></div>
-          <div><dt>Hints</dt><dd id="result-hints">—</dd></div>
-          <div><dt>Score</dt><dd id="result-score">—</dd></div>
+          <div><dt>Pairs</dt><dd id="result-pairs">—</dd></div>
+          <div><dt>Best streak</dt><dd id="result-streak">—</dd></div>
+          <div><dt>Your time</dt><dd id="result-time">—</dd></div>
+          <div><dt>Fastest</dt><dd id="result-fastest">—</dd></div>
         </dl>
         <p class="results-note" id="results-note"></p>
         <div class="results-actions">
