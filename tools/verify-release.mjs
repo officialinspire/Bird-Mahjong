@@ -18,7 +18,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { launchBrowser, serve } from "./lib/serve.mjs";
+import { launchBrowser, serve, isBenignFailure } from "./lib/serve.mjs";
 import { SEED, afterMatch, playPairs, solutionFor, tile } from "./lib/play.mjs";
 import { DIFFICULTIES } from "../js/config.js";
 import { MIN_TILE } from "../js/ui/board-view.js";
@@ -120,7 +120,7 @@ async function sweep(browser, url, device, difficulty) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => (m.type() === "error" || m.type() === "warning") && errors.push(`${m.type()}: ${m.text()}`));
-  page.on("requestfailed", (r) => errors.push(`failed: ${r.url()}`));
+  page.on("requestfailed", (r) => !isBenignFailure(r) && errors.push(`failed: ${r.url()} ${r.failure()?.errorText}`));
   const input = device.touch ? "touch" : "mouse";
   const press = (sel) => (device.touch ? page.locator(sel).tap() : page.locator(sel).click());
 

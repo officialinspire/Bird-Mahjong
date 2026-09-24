@@ -22,7 +22,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
-import { launchBrowser, serve, ROOT } from "./lib/serve.mjs";
+import { launchBrowser, serve, ROOT, isBenignFailure } from "./lib/serve.mjs";
 import { SEED, playPairs, solutionFor, startDifficulty } from "./lib/play.mjs";
 import { precacheList } from "./build-sw.mjs";
 
@@ -42,7 +42,7 @@ const cacheReport = (page) =>
   page.evaluate(async () => {
     const keys = await caches.keys();
     const report = {};
-    for (const k of keys) report[k] = (await (await caches.open(k)).keys()).map((r) => new URL(r.url).pathname);
+    for (const k of keys) report[k] = (await (await caches.open(k)).keys()).map((r) => decodeURIComponent(new URL(r.url).pathname));
     return report;
   });
 
@@ -125,7 +125,7 @@ async function offlinePlay(browser, url) {
   const page = await context.newPage();
   const failed = [];
   const errors = [];
-  page.on("requestfailed", (r) => failed.push(r.url()));
+  page.on("requestfailed", (r) => !isBenignFailure(r) && failed.push(r.url()));
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(url, { waitUntil: "networkidle" });
   await controlled(page);

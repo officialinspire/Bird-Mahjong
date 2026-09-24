@@ -18,7 +18,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { launchBrowser, serve } from "./lib/serve.mjs";
+import { launchBrowser, serve, isBenignFailure } from "./lib/serve.mjs";
 import { SEED, playPairs, solutionFor } from "./lib/play.mjs";
 const SHOT_DIR = process.argv[2] ? path.resolve(process.argv[2]) : null;
 
@@ -98,7 +98,7 @@ async function main() {
       const errors = [];
       page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
       page.on("pageerror", (e) => errors.push(e.message));
-      page.on("requestfailed", (r) => errors.push(`request failed: ${r.url()}`));
+      page.on("requestfailed", (r) => !isBenignFailure(r) && errors.push(`request failed: ${r.url()} ${r.failure()?.errorText}`));
       page.on("response", (r) => r.status() >= 400 && errors.push(`${r.status()} ${r.url()}`));
       page.on("request", (r) => !r.url().startsWith(origin) && !r.url().startsWith("data:") && errors.push(`external request: ${r.url()}`));
 

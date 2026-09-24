@@ -6,8 +6,8 @@
 //     visible and on top, H hints and U undoes
 //   * descriptive labels: every tile says its bird, its state and a visual cue
 //   * sound: no AudioContext before the first gesture; chirps on matches with
-//     Sound effects on; menu/game music after the first tap with Music on;
-//     switching either off cuts what's sounding at once; an old "Sound off"
+//     Sound effects on; menu/game music (the recorded tracks) after the first
+//     tap with Music on; switching either off stops it at once; an old "Sound off"
 //     setting carries over; silent (no AudioContext at all) with both off
 //   * animation: score floats and the board-clear celebration with animations
 //     on; none of it with Minimal or the OS reduce-motion preference
@@ -48,6 +48,10 @@ function instrumentAudio() {
     };
     const start = OscillatorNode.prototype.start;
     OscillatorNode.prototype.start = function (...args) { audio.tones++; return start.apply(this, args); };
+    // Recorded music plays through <audio> elements: remember every one played.
+    window.__media = new Set();
+    const mediaPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (...args) { window.__media.add(this); return mediaPlay.apply(this, args); };
     // stop(0) = cut off immediately (what muting does to sounds still playing).
     const stop = OscillatorNode.prototype.stop;
     OscillatorNode.prototype.stop = function (...args) { if (args[0] === 0) audio.cut++; return stop.apply(this, args); };
@@ -272,33 +276,32 @@ async function audio(browser) {
 
   console.log("sound: music (effects off)");
   {
+    const music = (page) => page.evaluate(() => [...window.__media].map((e) => ({
+      track: decodeURIComponent(e.src.split("/").pop()), playing: !e.paused, t: e.currentTime,
+    })));
+    const playingNow = async (page) => (await music(page)).filter((m) => m.playing).map((m) => m.track);
     const { context, page, errors } = await open(browser, DESKTOP, { settings: { sfx: false } });
     await page.waitForTimeout(1500);
-    check((await page.evaluate(() => window.__audio.contexts)) === 0, "no music before any interaction, even after waiting");
+    check((await page.evaluate(() => window.__audio.contexts + window.__media.size)) === 0, "no music before any interaction, even after waiting");
     await page.click("#screen-start");
-    const t0 = await page.evaluate(() => window.__audio.tones);
-    await page.waitForTimeout(2500);
-    const menuAudio = await page.evaluate(() => window.__audio);
-    check(menuAudio.contexts === 1 && !menuAudio.beforeGesture && menuAudio.tones > t0,
-      `after the first tap, the menu music plays (${menuAudio.tones - t0} notes in 2.5s)`);
+    await page.waitForTimeout(1500);
+    check((await playingNow(page)).join() === "Bird Mahjong - Gentle Canopy.mp3" && !(await page.evaluate(() => window.__audio.beforeGesture)),
+      "after the first tap, the menu music (Gentle Canopy) plays");
 
-    // Music off in Settings: sounding notes are cut at once, and nothing new plays.
+    // Music off in Settings: stops at once, and nothing new plays.
     await page.click("#screen-menu [data-go=settings]");
-    const cutBefore = await page.evaluate(() => window.__audio.cut);
     await page.click("#screen-settings input[name=music]");
-    const afterToggle = await page.evaluate(() => window.__audio);
-    check(afterToggle.cut > cutBefore, `switching Music off cuts the notes still sounding (${afterToggle.cut - cutBefore} stopped)`);
-    await page.waitForTimeout(2000);
-    check((await page.evaluate(() => window.__audio.tones)) === afterToggle.tones, "…and no new notes play");
+    check((await playingNow(page)).length === 0, "switching Music off stops it at once");
+    await page.waitForTimeout(1500);
+    check((await playingNow(page)).length === 0, "…and nothing starts again");
 
-    // Back on: the music returns; the effects stay off during play.
+    // Back on, then into a game: the gameplay track.
     await page.click("#screen-settings input[name=music]");
     await page.click("#screen-settings [data-go=menu]");
     await page.click("#screen-menu [data-go=difficulty]");
     await page.click("[data-difficulty=easy]");
-    const g0 = await page.evaluate(() => window.__audio.tones);
-    await page.waitForTimeout(2500);
-    check((await page.evaluate(() => window.__audio.tones)) > g0, "Music switched back on plays again, now the in-game mood");
+    await page.waitForTimeout(1800);
+    check((await playingNow(page)).join() === "Bird Mahjong - Forest Breeze.mp3", "Music switched back on plays again, now Forest Breeze in play");
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("inspireBirdMahjong:v1:settings")));
     check(saved.music === true && saved.sfx === false && typeof saved.musicVolume === "number" && !("sound" in saved),
       "the two switches are saved separately", JSON.stringify(saved));

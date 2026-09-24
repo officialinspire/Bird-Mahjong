@@ -51,7 +51,7 @@ function showScreen(name) {
     screen.classList.toggle("is-active", active);
   });
   document.body.dataset.screen = name;
-  sound.setScene(name === "game" ? "game" : "menu");
+  sound.setScene(musicSceneFor(name));
   window.scrollTo(0, 0);
   // Move focus to the new screen so keyboard and screen-reader users land
   // at its heading rather than on a now-hidden button.
@@ -239,10 +239,16 @@ function anyDialogOpen() {
   return $("#pause-dialog").open || $("#new-game-dialog").open;
 }
 
+/** Gentle Canopy everywhere except active play (so also while paused). */
+function musicSceneFor(screen) {
+  return screen === "game" && !anyDialogOpen() ? "game" : "menu";
+}
+
 function openPause() {
   if (state.screen !== "game" || anyDialogOpen()) return;
   game.pause();
   autosave();
+  sound.setScene("menu");
   $("#pause-dialog").showModal();
 }
 
@@ -256,6 +262,7 @@ function requestNewGame() {
   game.pause();
   $("#new-game-dialog").returnValue = "";
   $("#new-game-dialog").showModal();
+  sound.setScene("menu");
   $("#btn-new-game-cancel").focus(); // the safe choice is the default
 }
 
@@ -389,6 +396,7 @@ function bindEvents() {
   $("#btn-game-menu").addEventListener("click", openPause);
   $("#pause-dialog").addEventListener("close", () => {
     if (state.screen === "game") game.resume();
+    sound.setScene(musicSceneFor(state.screen));
   });
   $("#btn-pause-restart").addEventListener("click", () => {
     $("#pause-dialog").close();
@@ -400,6 +408,7 @@ function bindEvents() {
   });
   $("#btn-game-new").addEventListener("click", requestNewGame);
   $("#new-game-dialog").addEventListener("close", () => {
+    sound.setScene(musicSceneFor(state.screen));
     if (state.screen !== "game") return;
     if ($("#new-game-dialog").returnValue === "new") startGame(state.difficulty);
     else game.resume();

@@ -13,11 +13,16 @@
 // its gain drops to zero at the current audio time and any sound still
 // playing on it is stopped, so nothing tails off after "off".
 //
-// Optional recorded audio: pass `files` ({ sfx: { match: "…" }, music:
-// { menu: "…", game: "…" } }, relative URLs). Files are fetched and decoded
-// only after unlock, in the background; any that are missing or fail simply
-// leave the synthesized version in place. The synthesized sounds are always
-// the fallback.
+// Recorded audio: pass `files` ({ sfx: { match: "…" }, music: { menu: "…",
+// game: "…" } }, relative URLs), all used only after unlock.
+//   * Music tracks are played by the music controller (js/ui/music.js):
+//     streamed <audio> elements routed into the music bus, seamless loops,
+//     1s crossfades between scenes.
+//   * Short effects are fetched and decoded in the background.
+// Anything missing, unsupported or refused falls back to the synthesized
+// version, which is always available.
+
+import { createMusicController } from "./music.js";
 
 const SOUND_NAMES = ["select", "match", "mismatch", "blocked", "hint", "undo", "shuffle", "win"];
 export const MUSIC_SCENES = ["menu", "game"];
@@ -38,7 +43,13 @@ export function createSound({
   files = {},
   AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext,
   fetchFile = globalThis.fetch?.bind(globalThis),
-  timers = { setInterval: globalThis.setInterval?.bind(globalThis), clearInterval: globalThis.clearInterval?.bind(globalThis) },
+  timers = {
+    setInterval: globalThis.setInterval?.bind(globalThis),
+    clearInterval: globalThis.clearInterval?.bind(globalThis),
+    setTimeout: globalThis.setTimeout?.bind(globalThis),
+    clearTimeout: globalThis.clearTimeout?.bind(globalThis),
+  },
+  createMusic = createMusicController,
 }) {
   let ctx = null;
   let master = null;
@@ -46,8 +57,10 @@ export function createSound({
   let musicBus = null;
   const liveSfx = new Set();     // effect sources still sounding
   const liveMusic = new Set();   // music sources still sounding
-  const buffers = { sfx: {}, music: {} };
+  const buffers = { sfx: {} };
   let loadStarted = false;
+  const tracks = files.music || {};
+  let recorded = null;           // music controller, created on the first gesture
 
   let scene = null;              // the screen's music scene ("menu" | "game")
   let playingScene = null;       // what's actually playing
@@ -72,8 +85,21 @@ export function createSound({
         sfxBus.connect(master);
         musicBus.connect(master);
         master.gain.value = 1;
+        if (Object.keys(tracks).length) {
+          recorded = createMusic({
+            tracks,
+            ctx,
+            bus: musicBus,
+            timers,
+            // A track that can't play: use the synthesized ambience instead.
+            onFallback: (which) => {
+              if (which === scene && musicEnabled()) startSynth(which);
+            },
+          });
+        }
       }
       if (ctx.state === "suspended") ctx.resume();
+      recorded?.retry(); // a new gesture: retry a play() the browser refused
       apply();
       loadFiles();
       return true;
@@ -121,24 +147,16 @@ export function createSound({
 
   // ---------- Optional recorded audio ----------
 
+  /** Short recorded effects are small: fetch and decode them whole. */
   function loadFiles() {
     if (loadStarted || !fetchFile) return;
     loadStarted = true;
-    for (const kind of ["sfx", "music"]) {
-      for (const [name, url] of Object.entries(files[kind] || {})) {
-        fetchFile(url)
-          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
-          .then((data) => ctx.decodeAudioData(data))
-          .then((buffer) => {
-            buffers[kind][name] = buffer;
-            // A recorded track for the scene now playing takes over from the synth.
-            if (kind === "music" && name === playingScene && musicEnabled()) {
-              stopMusic();
-              startMusic(scene);
-            }
-          })
-          .catch(() => { /* keep the synthesized fallback */ });
-      }
+    for (const [name, url] of Object.entries(files.sfx || {})) {
+      fetchFile(url)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
+        .then((data) => ctx.decodeAudioData(data))
+        .then((buffer) => { buffers.sfx[name] = buffer; })
+        .catch(() => { /* keep the synthesized fallback */ });
     }
   }
 
@@ -203,8 +221,8 @@ export function createSound({
     if (!enabled() || !ctx || !SOUNDS[name]) return false;
     try {
       if (ctx.state === "suspended") ctx.resume();
-      const recorded = buffers.sfx[name];
-      if (recorded) playBuffer(recorded, sfxBus, liveSfx, { rate: opts.pitch || 1 });
+      const clip = buffers.sfx[name];
+      if (clip) playBuffer(clip, sfxBus, liveSfx, { rate: opts.pitch || 1 });
       else SOUNDS[name](opts);
       return true;
     } catch {
@@ -246,15 +264,25 @@ export function createSound({
     }
   }
 
+  /**
+   * Go to a scene's music. Recorded tracks crossfade (the controller handles
+   * fades, loops and repeated calls); otherwise the synthesized ambience.
+   */
   function startMusic(which) {
     if (!ctx || !musicEnabled() || !which) return;
-    stopMusic();
     playingScene = which;
-    const recorded = buffers.music[which];
-    if (recorded) {
-      playBuffer(recorded, musicBus, liveMusic, { loop: true });
+    if (recorded?.has(which)) {
+      stopSynth();
+      recorded.play(which);
       return;
     }
+    recorded?.play(which); // fades any recorded track out
+    startSynth(which);
+  }
+
+  function startSynth(which) {
+    stopSynth();
+    playingScene = which;
     seed = which === "game" ? 7 : 3;
     step = 0;
     nextNoteAt = ctx.currentTime + 0.1;
@@ -264,11 +292,17 @@ export function createSound({
     }, TICK_MS);
   }
 
-  function stopMusic() {
+  function stopSynth() {
     if (scheduler !== null) timers.clearInterval?.(scheduler);
     scheduler = null;
-    playingScene = null;
     if (ctx) stopAll(liveMusic);
+  }
+
+  /** Music off: everything on the music bus stops now. */
+  function stopMusic() {
+    stopSynth();
+    recorded?.stop();
+    playingScene = null;
   }
 
   /** The screen changed: menus and play have slightly different music. */
@@ -284,12 +318,14 @@ export function createSound({
 
   /** Tab hidden / app backgrounded: silence everything until resume(). */
   function suspend() {
+    recorded?.suspend();
     if (ctx && ctx.state === "running") ctx.suspend().catch(() => {});
   }
 
   /** Back in view: resume only if something is switched on. */
   function resume() {
     if (ctx && anyOn() && ctx.state === "suspended") ctx.resume().catch?.(() => {});
+    if (musicEnabled()) recorded?.resume();
   }
 
   /** Legacy name: stop what's sounding now (used when Sound is switched off). */
@@ -309,6 +345,8 @@ export function createSound({
     names: SOUND_NAMES,
     get started() { return !!ctx; },
     get musicPlaying() { return playingScene; },
+    /** Recorded-music state (null if no tracks are configured). */
+    get recorded() { return recorded ? recorded.state : null; },
     /** For tests: how many sources are sounding on each bus. */
     get live() { return { sfx: liveSfx.size, music: liveMusic.size }; },
   };

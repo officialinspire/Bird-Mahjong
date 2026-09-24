@@ -327,23 +327,57 @@ describe("recorded audio with synthesized fallback", () => {
     assert.ok(ctx().sources.length >= 5);
   });
 
-  test("a recorded music track loops in its scene, and mutes immediately", async () => {
-    const { sound, cfg, ctx, intervals } = setup({
-      cfg: { sfx: false },
-      files: { music: { menu: "m/menu.mp3" } },
-      fileBodies: { "m/menu.mp3": "MENU" },
+  test("recorded music: the controller is created on the first gesture and follows the scenes", () => {
+    const calls = [];
+    let made = 0;
+    let fallback = null;
+    const fake = (opts) => {
+      made++;
+      fallback = opts.onFallback;
+      return {
+        has: (scene) => scene !== "broken",
+        play: (scene) => calls.push(["play", scene]),
+        stop: () => calls.push(["stop"]),
+        suspend: () => calls.push(["suspend"]),
+        resume: () => calls.push(["resume"]),
+        retry: () => calls.push(["retry"]),
+        state: {},
+      };
+    };
+    FakeContext.instances = [];
+    const cfg = { music: true };
+    const intervals = new Map();
+    const sound = createSound({
+      enabled: () => false, volume: () => 0,
+      musicEnabled: () => cfg.music, musicVolume: () => 0.5,
+      files: { music: { menu: "canopy.mp3", game: "breeze.mp3" } },
+      AudioContextClass: FakeContext,
+      timers: { setInterval: (fn) => { intervals.set(1, fn); return 1; }, clearInterval: () => intervals.clear(), setTimeout: () => 0, clearTimeout: () => {} },
+      createMusic: fake,
     });
     sound.setScene("menu");
-    sound.unlock(); // starts the synthesized ambience right away…
-    await flush(); await flush(); // …then the decoded track takes over
-    const track = ctx().sources.find((s) => s.kind === "buffer");
-    assert.ok(track && track.loop === true);
-    assert.equal(intervals.size, 0, "the synthesized scheduler stepped aside");
-    sound.setScene("game"); // no recording for play: synthesized fallback
-    assert.equal(track.stoppedAt, 0);
-    assert.equal(intervals.size, 1);
+    assert.equal(made, 0, "no controller (and no downloads) before a gesture");
+    sound.unlock();
+    sound.unlock();
+    assert.equal(made, 1, "one controller");
+    sound.setScene("game");
+    sound.setScene("game");
+    sound.setScene("menu");
+    assert.deepEqual(calls.filter((c) => c[0] === "play"), [["play", "menu"], ["play", "game"], ["play", "menu"]], "each scene change once; repeats ignored");
+    assert.equal(intervals.size, 0, "no synthesized ambience while recorded music plays");
     cfg.music = false;
     sound.apply();
-    assert.equal(sound.live.music, 0);
+    assert.deepEqual(calls.at(-1), ["stop"], "Music off stops the recorded track at once");
+    cfg.music = true;
+    sound.apply();
+    assert.deepEqual(calls.at(-1), ["play", "menu"], "and it returns in the current scene");
+    sound.suspend();
+    sound.resume();
+    assert.deepEqual(calls.slice(-2), [["suspend"], ["resume"]], "hidden tab: paused and resumed");
+    assert.ok(calls.some((c) => c[0] === "retry"), "each gesture retries a refused play()");
+    // A track that can't play: the synthesized ambience takes its place.
+    fallback("menu");
+    assert.equal(intervals.size, 1, "synthesized fallback started");
+    assert.equal(sound.musicPlaying, "menu");
   });
 });

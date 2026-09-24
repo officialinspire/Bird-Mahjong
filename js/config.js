@@ -20,15 +20,19 @@ export function difficultyById(id) {
 }
 
 /**
- * Optional recorded audio (relative URLs). Leave empty to use only the
- * built-in synthesized sounds. Anything listed here that is missing or fails
- * to decode falls back to the synthesized version, so a partial set is fine.
- * Put files in assets/audio/ so the service worker precaches them for offline
- * play (tools/build-sw.mjs picks them up), e.g.
- *   sfx:   { match: "assets/audio/match.mp3" }
- *   music: { menu: "assets/audio/menu.mp3", game: "assets/audio/game.mp3" }
+ * Recorded audio (relative URLs; spaces are fine). Music tracks are streamed
+ * by js/ui/music.js with seamless loops and crossfades:
+ *   menu  start screen, menus, pause and results
+ *   game  gameplay
+ * Effects listed under `sfx` are decoded whole (keep them short). Anything
+ * missing, unsupported or refused falls back to the synthesized sounds.
+ * tools/build-sw.mjs precaches root *.mp3 files and assets/audio/ for offline
+ * play (run `npm run build:sw` after changing them).
  */
 export const AUDIO_FILES = Object.freeze({
   sfx: Object.freeze({}),
-  music: Object.freeze({}),
+  music: Object.freeze({
+    menu: "Bird Mahjong - Gentle Canopy.mp3",
+    game: "Bird Mahjong - Forest Breeze.mp3",
+  }),
 });

@@ -72,8 +72,9 @@ js/app.js                  screen flow, settings, keyboard handling
 js/ui/board-view.js        DOM board: tile placement, states, zoom/pan, input
 js/ui/game-controller.js   connects js/game logic to the board, timer, messages
 js/ui/bird-names.js        display names, short on-tile labels, spoken visual cues
-js/ui/sound.js             optional synthesized music + sound effects (Web Audio)
-js/config.js               difficulty levels
+js/ui/sound.js             optional sound effects + music (Web Audio, synthesized fallback)
+js/ui/music.js             recorded music: crossfades, seamless loops, refusals
+js/config.js               difficulty levels, audio files
 js/settings.js             settings persisted in localStorage
 js/storage.js              one safe wrapper around localStorage (memory fallback)
 js/saved-game.js           the autosaved board (Continue)
@@ -97,6 +98,7 @@ tools/verify-play.mjs      touch and mouse play checks (Playwright)
 tools/verify-save.mjs      autosave / Continue checks with real reloads (Playwright)
 tools/verify-polish.mjs    keyboard, labels, sound, animation, contrast checks (Playwright)
 tools/verify-offline.mjs   offline, install and update checks (Playwright)
+tools/verify-music.mjs     recorded music transitions with the real MP3s (Playwright)
 tools/build-sw.mjs         writes sw.js's precache list + content-hash VERSION
 tools/make_icons.py        builds icons/ from the cropped tiles
 manifest.webmanifest       install metadata (relative start_url / scope)
@@ -240,39 +242,54 @@ sharing a deal or reproducing a bug.
   match. *Full* overrides the OS preference.
 
 **Music and Sound effects** each have their own switch and volume in
-Settings. Both are synthesized with Web Audio in `js/ui/sound.js`, so the game
-ships with no audio files.
+Settings. Sound effects are synthesized with Web Audio in `js/ui/sound.js`.
+Music uses the two recorded tracks in the repo root, played by
+`js/ui/music.js`, with a synthesized ambience as the fallback.
 
 - **Sound effects:** short two-note chirps for matches (pitched slightly
   differently per bird), a soft tick to select, a low tap for a blocked or
   mismatched tile, rising notes for a hint, a flutter for a shuffle, and a
   four-note chime with a chirp for a clear. Turning effects on, or moving
   their volume, plays a sample.
-- **Music:** a slow, sparse woodland ambience: a soft low note each bar, a few
-  gentle pentatonic notes, and now and then a distant bird call. It's a little
-  brighter and slower on the menus than during play, and it switches as you
-  move between screens. It sits under the effects in the mix.
+- **Music:** *Bird Mahjong - Gentle Canopy.mp3* plays on the start screen,
+  menus and pause. *Bird Mahjong - Forest Breeze.mp3* plays during a game.
+  - **Crossfades:** changing tracks crossfades over 1 second. Changing screens
+    quickly never stacks tracks. Each new fade starts from the current level
+    and cancels the old one, so only one track is ever heading up.
+  - **No restarts:** returning to a track that is still playing or fading out
+    turns it around. Pausing and resuming a game continues Forest Breeze from
+    the same place.
+  - **Looping:** each track has two `<audio>` voices. Just before one ends,
+    its twin starts from the top with a 0.35 s overlap, so the loop has no gap.
+  - **Streaming:** the tracks stream from `<audio>` elements routed through
+    Web Audio, so the Music switch, its volume and instant mute all apply.
+    Nothing is decoded into memory.
+  - **If `play()` is refused:** when the browser says there was no gesture
+    yet, the next tap or key press retries. Any other failure (unsupported
+    format, missing file) switches that scene to the synthesized ambience,
+    which is a slow pentatonic woodland pad with the odd distant bird call.
 - **Two channels:** effects and music run on separate audio channels under
   one master volume, so their volumes are independent.
 - **When audio starts:** nothing is created until the first tap or key press,
   and only if Music or Sound effects is on. With both off, no `AudioContext`
-  exists at all. A hidden tab is silenced and resumes when you return.
+  exists at all. A hidden tab pauses the music and silences effects, and both
+  resume from the same place when you return.
 - **Muting is immediate:** switching either off drops that channel to zero at
   the current audio time, cancels any fade, and stops every sound still
-  playing on it. For music, the note scheduler is also stopped. Volume sliders
+  playing on it. For music, the tracks pause (and the synthesized scheduler
+  stops). Volume sliders
   act live while you drag them.
 - **Older saves:** they had one *Sound* switch and volume, which carry over to
   Sound effects. Music starts on at 40%.
-- **Adding recorded audio (optional):**
-  1. Put files in `assets/audio/`.
-  2. List them in `AUDIO_FILES` in `js/config.js`, e.g.
-     `music: { menu: "assets/audio/menu.mp3" }` or
-     `sfx: { match: "assets/audio/match.mp3" }`.
-  3. Run `npm run build:sw`, so they're precached for offline play.
+- **Changing the audio files:** list them in `AUDIO_FILES` in
+  `js/config.js`. Music goes under `music: { menu, game }`, and recorded
+  effects under `sfx`, e.g. `sfx: { match: "assets/audio/match.mp3" }`. Then
+  run `npm run build:sw`. It precaches every `.mp3` in the repo root and
+  everything in `assets/audio/` for offline play.
 
   Files are fetched only after the first gesture. Any that are missing or fail
-  to decode keep the synthesized sound, so the synthesized sounds are always
-  the fallback.
+  to play keep the synthesized sound, so the synthesized sounds are always the
+  fallback.
 
 **The game is identical without any of it.** With Music and Sound effects off
 and Animations on Minimal, every rule, score and control is unchanged; the
@@ -632,9 +649,9 @@ npm run test:save
 - **Sound:**
   - There is no `AudioContext` before the first gesture, even after waiting.
   - With Sound effects on, matches chirp; switched off, they're silent.
-  - With Music on, the menu ambience starts after the first tap.
-  - Switching Music off cuts the notes still sounding, and no new notes play.
-    Switched back on, it plays the in-game mood.
+  - With Music on, Gentle Canopy starts after the first tap.
+  - Switching Music off stops it at once, and nothing new plays. Switched back
+    on, Forest Breeze plays in a game.
   - The two switches are saved separately, and an old saved "Sound off"
     carries over to Sound effects.
 
@@ -644,7 +661,17 @@ npm run test:save
     scheduler cleared)
   - the audio context suspending when both are off, the scenes, and a hidden
     tab
-  - recorded files with synthesized fallback
+  - recorded effects with synthesized fallback, and music handed to the
+    music controller
+
+  `tests/music.test.js` checks the music controller with fake timers and
+  audio elements:
+  - crossfade length, no restart of a playing track, and each fade holding
+    the current level before ramping
+  - rapid screen changes, resuming from the same place, the seamless loop
+    and its `ended` safety net
+  - refused `play()` (retried on a gesture, fallback on other errors, an
+    AbortError ignored), Music off, and a hidden tab
 
   `tests/settings.test.js` covers defaults, independence, clamping, per-field
   fallback, migration of old saves, broken storage, and that every saved
@@ -664,7 +691,7 @@ npm run test:save
 `/Bird-Mahjong/`, the same path GitHub Pages uses, and checks:
 
 - **First load:** the worker takes control, and one versioned cache holds all
-  69 precached files. There's no reload or update banner on first install.
+  72 precached files. There's no reload or update banner on first install.
 - **Install:** in a regular Chromium profile, the manifest parses without
   errors, `start_url` and `scope` resolve to `/Bird-Mahjong/`, and Chromium
   reports **no installability errors**. Chromium offers installation itself,
@@ -688,6 +715,29 @@ npm run test:save
 - that every module reachable from `js/app.js`, every file `index.html` loads,
   and every tile are precached
 - that there are no absolute root paths anywhere
+
+## Checking music transitions
+
+`tools/verify-music.mjs` (`npm run test:music`) plays the real MP3s in
+Chromium and records every `<audio>` element and `play()` call. It checks:
+
+- **Screen flow:** no music before the first gesture. Gentle Canopy then
+  plays on the start screen and menus, and Forest Breeze in a game. The two
+  overlap for about a second while they crossfade.
+- **No stacking:** never more than two voices sound at once.
+- **Pause:** pausing brings back Gentle Canopy without restarting it.
+  Resuming brings back Forest Breeze from where it was.
+- **Rapid changes:** quick pause/resume toggling never stacks or restarts a
+  track.
+- **Hidden tab:** the music pauses and resumes in place.
+- **Music settings:** switching Music off and on works, and its volume is
+  applied through Web Audio.
+- **Loop point:** music keeps sounding across the loop, with about 0.35 s of
+  overlap.
+- **Refusals:** a `NotAllowedError` is retried on the next tap. A
+  `NotSupportedError` falls back to the synthesized ambience.
+- **Offline:** both tracks are cached. They play offline and can seek, since
+  the service worker answers range requests from the cache.
 
 ## Release sweep
 
@@ -767,7 +817,8 @@ change.
 **Offline needs one successful online load.** That first visit registers
 `sw.js`, which precaches the whole game into one versioned cache: HTML, CSS,
 every JS module, the manifest, the icons, and all 40 cropped bird tiles (the
-120px and full-resolution WebP), about 1.2 MB. From then on the game loads and
+120px and full-resolution WebP), and the two music tracks, about 6.8 MB in all
+(the tracks are about 5.6 MB). From then on the game loads and
 plays fully offline, including deep links like `?seed=123`, autosave and
 Continue.
 
