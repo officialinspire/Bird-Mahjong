@@ -8,14 +8,24 @@ import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings.js";
 import { renderBackground } from "./background.js";
 import { SCORING } from "./game/score.js";
 import { createBestScores } from "./best-scores.js";
+import { createSavedGame } from "./saved-game.js";
+import { openStorage } from "./storage.js";
+import { tilesLeft } from "./game/game.js";
 import { createGameController } from "./ui/game-controller.js";
 
 const $ = (selector) => document.querySelector(selector);
 
+// Settings, best scores and the autosaved board all share one storage. If
+// localStorage is blocked or broken this is a session-only stand-in, and the
+// Settings screen says so.
+const { storage, persistent } = openStorage();
+const bests = createBestScores(storage);
+const saved = createSavedGame(storage);
+
 const state = {
   screen: "start",
   difficulty: DIFFICULTIES[0].id,
-  settings: loadSettings(),
+  settings: loadSettings(storage),
 };
 
 // ---------- Screens ----------
@@ -27,7 +37,11 @@ function showScreen(name) {
   const leaving = state.screen;
   state.screen = name; // set first: closing the pause dialog checks it
   for (const dialog of ["#pause-dialog", "#new-game-dialog"]) if ($(dialog).open) $(dialog).close();
-  if (leaving === "game" && name !== "game") game.pause();
+  if (leaving === "game" && name !== "game") {
+    game.pause();
+    autosave(); // keep the paused clock
+  }
+  if (name === "menu") renderContinue();
 
   document.querySelectorAll(".screen").forEach((screen) => {
     const active = screen === next;
@@ -75,7 +89,9 @@ function renderDifficulties() {
       const best = document.createElement("span");
       best.className = "difficulty-best";
       const record = bests.get(d.id);
-      best.textContent = record ? `Best score ${record.score.toLocaleString()}` : "Not cleared yet";
+      best.textContent = record
+        ? `Best score ${record.score.toLocaleString()} · ${record.games} cleared`
+        : "Not cleared yet";
 
       button.append(icon, title, detail, best);
       li.append(button);
@@ -85,11 +101,6 @@ function renderDifficulties() {
 }
 
 // ---------- Game ----------
-
-// Reading `localStorage` itself can throw when site data is blocked.
-const bests = createBestScores((() => {
-  try { return window.localStorage; } catch { return undefined; }
-})());
 
 const media = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -126,6 +137,7 @@ const game = createGameController({
   },
   reducedMotion,
   onWin: showResults,
+  onChange: (snap) => saved.save({ difficultyId: state.difficulty, ...snap }),
 });
 
 // `?seed=123` replays a specific first board (handy for sharing and tests).
@@ -144,7 +156,46 @@ function startGame(difficultyId) {
   pendingSeed = undefined;
 }
 
+// ---------- Autosave and Continue ----------
+
+/** Save the board in progress right now (e.g. before the page goes away). */
+function autosave() {
+  const snap = game.snapshot();
+  if (snap) saved.save({ difficultyId: state.difficulty, ...snap });
+}
+
+/** Enable Continue only for a valid save, and say what it will resume. */
+function renderContinue() {
+  const save = saved.load();
+  const button = $("#btn-continue");
+  button.disabled = !save;
+  if (save) {
+    const d = difficultyById(save.difficultyId);
+    const pairs = tilesLeft(save.state) / 2;
+    $("#continue-detail").textContent = `${d.name} · ${pairs} pair${pairs === 1 ? "" : "s"} left · ${save.state.score.toLocaleString()} pts`;
+    button.removeAttribute("title");
+  } else {
+    $("#continue-detail").textContent = "";
+    button.title = "No saved game yet";
+  }
+  $("#difficulty-replace-note").hidden = !save;
+}
+
+function continueGame() {
+  const save = saved.load();
+  if (!save) {
+    renderContinue(); // the save vanished or was corrupt
+    return;
+  }
+  const d = difficultyById(save.difficultyId);
+  state.difficulty = d.id;
+  $("#game-difficulty").textContent = `${d.name} · ${d.habitat}`;
+  showScreen("game");
+  game.load(save.state, save.elapsedMs);
+}
+
 function showResults(summary) {
+  saved.clear(); // a finished board isn't something to continue
   const d = difficultyById(state.difficulty);
   $("#results-difficulty").textContent = `${d.name} · ${d.habitat}`;
   const { isNewBest, isNewBestTime, previous, best } = bests.record(d.id, summary);
@@ -161,6 +212,7 @@ function showResults(summary) {
   $("#result-fastest").textContent = formatSeconds(best.bestTime);
   $("#results-note").textContent =
     `Time is just for you — it never affects your score.${isNewBestTime && previous ? " That's your fastest yet." : ""}`;
+  $("#result-cleared").textContent = `${d.name} boards cleared: ${best.games}`;
   showScreen("results");
 }
 
@@ -176,6 +228,7 @@ function anyDialogOpen() {
 function openPause() {
   if (state.screen !== "game" || anyDialogOpen()) return;
   game.pause();
+  autosave();
   $("#pause-dialog").showModal();
 }
 
@@ -218,14 +271,14 @@ function onSettingsChange() {
     tileLabels: form.elements.tileLabels.checked,
     streakBonus: form.elements.streakBonus.checked,
   };
-  saveSettings(state.settings);
+  saveSettings(state.settings, storage);
   applySettings();
   game.refresh();
 }
 
 function resetSettings() {
   state.settings = { ...DEFAULT_SETTINGS };
-  saveSettings(state.settings);
+  saveSettings(state.settings, storage);
   syncSettingsForm();
   applySettings();
 }
@@ -286,10 +339,16 @@ function bindEvents() {
   $("#btn-pause-menu").addEventListener("click", () => showScreen("menu"));
   $("#btn-play-again").addEventListener("click", () => startGame(state.difficulty));
 
-  // Leaving the tab or app pauses the game (and its clock).
+  // Leaving the tab or app pauses the game (and its clock) and saves it;
+  // pagehide also covers closing the tab or reloading.
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) openPause();
+    if (document.hidden) {
+      openPause();
+      autosave();
+    }
   });
+  window.addEventListener("pagehide", autosave);
+  $("#btn-continue").addEventListener("click", continueGame);
   media.addEventListener("change", applySettings);
 
   $("#settings-form").addEventListener("change", onSettingsChange);
@@ -324,6 +383,8 @@ function renderScoring() {
 
 renderDifficulties();
 renderScoring();
+renderContinue();
+$("#storage-note").hidden = persistent;
 syncSettingsForm();
 applySettings();
 renderBackground($("#sky-tiles"));

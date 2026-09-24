@@ -894,3 +894,28 @@ html[data-tile-labels="on"] .tile-label { display: block; }
 }
 
 .dialog-text { color: var(--bark-soft); margin: -4px 0 4px; }
+
+/* ---------- Saving ---------- */
+
+.btn--continue { flex-direction: column; gap: 0; line-height: 1.2; }
+.continue-detail { font-size: 0.78rem; font-weight: 600; color: var(--bark-soft); }
+.continue-detail:empty { display: none; }
+.difficulty-note {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--sky-tint);
+  color: var(--sky-ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.difficulty-note[hidden], .storage-note[hidden] { display: none; }
+.storage-note {
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--cardinal);
+  background: var(--ivory);
+  font-size: 0.88rem;
+  color: var(--bark);
+}

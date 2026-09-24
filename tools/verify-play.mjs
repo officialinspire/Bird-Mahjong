@@ -484,7 +484,7 @@ async function bestScores(browser, url) {
   await page.click("#screen-menu [data-go=difficulty]");
   const picker = await page.evaluate(() => Object.fromEntries(
     [...document.querySelectorAll(".difficulty-option")].map((b) => [b.dataset.difficulty, b.querySelector(".difficulty-best").textContent])));
-  check(picker.easy === `Best score ${first.score}` && picker.medium === "Not cleared yet" && picker.hard === "Not cleared yet",
+  check(picker.easy === `Best score ${first.score} · 1 cleared` && picker.medium === "Not cleared yet" && picker.hard === "Not cleared yet",
     "the picker shows a separate best for each difficulty", JSON.stringify(picker));
 
   // Win Medium: its best is separate from Easy's.

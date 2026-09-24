@@ -25,7 +25,12 @@ const formatTime = (seconds) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-export function createGameController({ elements, reducedMotion, onWin }) {
+/**
+ * `onChange(snapshot)` runs after every change to the board (match, undo,
+ * selection, hint, shuffle, restart) while a game is in progress, so the app
+ * can autosave. `snapshot` is { state, elapsedMs }.
+ */
+export function createGameController({ elements, reducedMotion, onWin, onChange = () => {} }) {
   const view = createBoardView({
     viewport: elements.viewport,
     surface: elements.board,
@@ -75,6 +80,7 @@ export function createGameController({ elements, reducedMotion, onWin }) {
   }
 
   function sync() {
+    if (!finished) onChange(snapshot());
     view.sync(state, info, { hint });
     renderStats();
     const noHistory = state.history.length === 0 || finished;
@@ -118,22 +124,39 @@ export function createGameController({ elements, reducedMotion, onWin }) {
   // ---------- Game flow ----------
 
   function start(difficulty, { seed, streakBonus = true } = {}) {
-    layout = getLayout(difficulty.layout);
     const options = { streakBonus };
     if (seed !== undefined) options.seed = seed;
     if (difficulty.birdPool) options.birdPool = difficulty.birdPool;
-    state = createGame(difficulty.layout, options);
+    begin(createGame(difficulty.layout, options), 0);
+    say("Tap a free bird, then its twin. Striped tiles are blocked.");
+  }
+
+  /** Pick up a saved board exactly where it was left (see js/saved-game.js). */
+  function load(savedState, savedElapsedMs) {
+    begin(savedState, savedElapsedMs);
+    const pairs = tilesLeft(state) / 2;
+    if (!elements.stuck.panel.hidden) return; // the stuck offer already explains
+    say(`Welcome back — ${pairs} pair${pairs === 1 ? "" : "s"} to go.`);
+  }
+
+  function begin(nextState, startMs) {
+    state = nextState;
+    layout = getLayout(state.layoutId);
     hint = null;
     finished = false;
     lockedUntil = 0;
     delete elements.board.dataset.locked;
     last = { index: -1, at: 0 };
-    elapsedMs = 0;
+    elapsedMs = startMs;
     runningSince = null;
+    recoveryCache = { state: null, value: "none" };
     view.render(layout);
     sync();
-    say("Tap a free bird, then its twin. Striped tiles are blocked.");
     startClock();
+  }
+
+  function snapshot() {
+    return { state, elapsedMs: Math.round(seconds() * 1000) };
   }
 
   function activate(index) {
@@ -297,6 +320,8 @@ export function createGameController({ elements, reducedMotion, onWin }) {
 
   return {
     start,
+    load,
+    snapshot: () => (state && !finished ? snapshot() : null),
     restart,
     pause: stopClock,
     resume: startClock,

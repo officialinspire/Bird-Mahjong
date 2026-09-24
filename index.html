@@ -44,7 +44,10 @@
           <h1 id="menu-title" class="brand">Bird <span>Mahjong</span></h1>
           <nav class="menu-nav" aria-label="Main menu">
             <button type="button" class="btn btn--primary" data-go="difficulty">New Game</button>
-            <button type="button" class="btn" id="btn-continue" disabled title="No saved game yet">Continue</button>
+            <button type="button" class="btn btn--continue" id="btn-continue" disabled title="No saved game yet" aria-describedby="continue-detail">
+              <span>Continue</span>
+              <small id="continue-detail" class="continue-detail"></small>
+            </button>
             <button type="button" class="btn" data-go="help">How to Play</button>
             <button type="button" class="btn" data-go="settings">Settings</button>
           </nav>
@@ -66,6 +69,7 @@
         </div>
       </header>
       <div class="panel-body">
+        <p id="difficulty-replace-note" class="difficulty-note" hidden>Starting a new board replaces your saved game. Use Continue on the menu to pick it up instead.</p>
         <ul id="difficulty-list" class="difficulty-list" role="list"></ul>
       </div>
     </section>
@@ -234,6 +238,7 @@
             </span>
             <input type="checkbox" name="streakBonus" role="switch">
           </label>
+          <p id="storage-note" class="storage-note" role="note" hidden>This browser isn't letting the game save (private browsing or blocked site data). Settings, best scores and your board will last only until you close the tab.</p>
           <button type="button" class="btn btn--quiet" id="btn-reset-settings">Reset to defaults</button>
         </form>
       </div>
@@ -258,6 +263,7 @@
           <div><dt>Fastest</dt><dd id="result-fastest">—</dd></div>
         </dl>
         <p class="results-note" id="results-note"></p>
+        <p class="results-note" id="result-cleared"></p>
         <div class="results-actions">
           <button type="button" class="btn btn--primary" id="btn-play-again">Play Again</button>
           <button type="button" class="btn" data-go="menu">Main Menu</button>
