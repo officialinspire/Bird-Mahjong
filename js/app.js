@@ -41,6 +41,7 @@ function showScreen(name) {
   for (const dialog of ["#pause-dialog", "#new-game-dialog"]) if ($(dialog).open) $(dialog).close();
   if (leaving === "game" && name !== "game") {
     game.pause();
+    game.settle(); // no animation or sparkle survives a screen change
     autosave(); // keep the paused clock
   }
   if (name === "menu") renderContinue();
@@ -245,7 +246,8 @@ function musicSceneFor(screen) {
 }
 
 function openPause() {
-  if (state.screen !== "game" || anyDialogOpen()) return;
+  // Not during the board-clear moment: results follow by themselves.
+  if (state.screen !== "game" || anyDialogOpen() || game.finishing) return;
   game.pause();
   autosave();
   sound.setScene("menu");
@@ -254,7 +256,7 @@ function openPause() {
 
 /** New Game from the toolbar: ask first if there's progress to lose. */
 function requestNewGame() {
-  if (state.screen !== "game" || anyDialogOpen()) return;
+  if (state.screen !== "game" || anyDialogOpen() || game.finishing) return;
   if (!game.hasProgress()) {
     startGame(state.difficulty);
     return;

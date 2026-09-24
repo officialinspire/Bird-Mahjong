@@ -15,7 +15,8 @@ import { birdName } from "./bird-names.js";
 import { createBoardView } from "./board-view.js";
 
 const DOUBLE_TAP_MS = 350;     // same tile again this soon = accidental double tap
-const REMOVE_MS = 320;         // match animation length (CSS .is-removing)
+const REMOVE_MS = 280;         // match lift/fade length (CSS .is-removing)
+const QUICK_GUARD_MS = 120;    // reduced motion: only a tap-through guard, no animation wait
 const CELEBRATE_MS = 1500;     // restrained board-clear moment before results (animations on)
 const QUIET_WIN_MS = 250;      // with animations off: just let the last pair go
 
@@ -47,6 +48,7 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
   let lockedUntil = 0;
   let last = { index: -1, at: 0 };
   let finished = false;
+  let winTimer = null;           // board-clear moment -> results
 
   // Clock: accumulated ms plus the running segment, so pausing is exact.
   let elapsedMs = 0;
@@ -142,6 +144,9 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
   }
 
   function begin(nextState, startMs) {
+    clearTimeout(winTimer); // an older board's win can't land on this one
+    winTimer = null;
+    view.clearEffects();
     state = nextState;
     layout = getLayout(state.layoutId);
     hint = null;
@@ -203,7 +208,11 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
       case "matched":
         state = next;
         hint = null;
-        lockInput(reducedMotion() ? 120 : REMOVE_MS);
+        // Taps wait until the lift/fade is over, so a tile it uncovers can't
+        // be tapped while the old one is still on top of it. With reduced
+        // motion the pair goes at once and only a brief tap-through guard
+        // stays (a quick double tap mustn't land on the tile underneath).
+        lockInput(reducedMotion() ? QUICK_GUARD_MS : REMOVE_MS);
         view.animateRemoval([previous, index], reducedMotion() ? 0 : REMOVE_MS);
         if (!reducedMotion()) view.floatScore(index, `+${state.gains.at(-1).points}`);
         say(matchMessage(name), "good");
@@ -235,11 +244,12 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
       sync();
       say("Board cleared! Well flown.", "good");
       play("win");
+      const deliver = () => { winTimer = null; view.clearEffects(); onWin(summary()); };
       if (reducedMotion()) {
-        setTimeout(() => onWin(summary()), QUIET_WIN_MS);
+        winTimer = setTimeout(deliver, QUIET_WIN_MS);
       } else {
         view.celebrate(CELEBRATE_MS);
-        setTimeout(() => onWin(summary()), CELEBRATE_MS);
+        winTimer = setTimeout(deliver, CELEBRATE_MS);
       }
     }
     // A stuck board is picked up by sync() → renderStuck().
@@ -291,6 +301,7 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     if (!state || finished) return;
     const next = shuffleRemaining(state);
     hint = null;
+    view.clearEffects(); // a fading tile must not change bird mid-fade
     if (next !== state) {
       state = next;
       sync();
@@ -306,6 +317,7 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     if (!state || finished) return;
     state = restartBoard(state);
     hint = null;
+    view.clearEffects();
     elapsedMs = 0;
     runningSince = null;
     startClock();
@@ -319,6 +331,7 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     const before = state.score;
     state = undo(state);
     hint = null;
+    view.clearEffects(); // no "+120" or sparkle for a pair that's back
     sync();
     play("undo");
     const back = before - state.score;
@@ -344,6 +357,10 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
     snapshot: () => (state && !finished ? snapshot() : null),
     restart,
     pause: stopClock,
+    /** Leaving the game screen: settle every animation and decoration now. */
+    settle: () => view.clearEffects(),
+    /** The board-clear moment is playing (results follow by themselves). */
+    get finishing() { return winTimer !== null; },
     resume: startClock,
     /** Matches made on the current, unfinished board (New Game asks first). */
     hasProgress: () => !!state && !finished && state.history.length > 0,
