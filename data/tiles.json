@@ -1,0 +1,26 @@
+{
+  "source": "bird-mahjong-tiles.jpg",
+  "grid": { "columns": 5, "rows": 4 },
+  "tiles": [
+    { "id": "bald-eagle",         "row": 1, "col": 1, "name": "Bald Eagle",             "notes": "White head, yellow hooked bill, dark brown body" },
+    { "id": "osprey",             "row": 1, "col": 2, "name": "Osprey",                 "notes": "White face with dark eye stripe, lake behind" },
+    { "id": "red-tailed-hawk",    "row": 1, "col": 3, "name": "Red-tailed Hawk",        "notes": "Rufous-brown head, streaked cream breast, red autumn leaves" },
+    { "id": "peregrine-falcon",   "row": 1, "col": 4, "name": "Peregrine Falcon",       "notes": "Slate-gray hood and 'moustache', barred cream breast" },
+    { "id": "barred-owl",         "row": 1, "col": 5, "name": "Barred Owl",             "notes": "Round gray-brown face, dark eyes, no ear tufts, birches" },
+    { "id": "great-horned-owl",   "row": 2, "col": 1, "name": "Great Horned Owl",       "notes": "Ear tufts, yellow eyes, mottled brown" },
+    { "id": "american-crow",      "row": 2, "col": 2, "name": "American Crow",          "notes": "Dark bird #1 (tile 07): slimmer, shorter bill; smooth throat; pine boughs framing both sides, no conifer trees" },
+    { "id": "common-raven",       "row": 2, "col": 3, "name": "Common Raven",           "notes": "Dark bird #2 (tile 08): heavier, deeper, more hooked bill; shaggy throat feathers; bulkier body; spruce trees on both sides" },
+    { "id": "blue-jay",           "row": 2, "col": 4, "name": "Blue Jay",               "notes": "Blue crest, black necklace, orange leaves" },
+    { "id": "northern-cardinal",  "row": 2, "col": 5, "name": "Northern Cardinal",      "notes": "All-red with black face mask, holly berries" },
+    { "id": "american-robin",     "row": 3, "col": 1, "name": "American Robin",         "notes": "Orange breast, dark head, white blossoms" },
+    { "id": "black-capped-chickadee", "row": 3, "col": 2, "name": "Black-capped Chickadee", "notes": "Black cap and bib, white cheek, pinecone" },
+    { "id": "tufted-titmouse",    "row": 3, "col": 3, "name": "Tufted Titmouse",        "notes": "Gray crest, pale face, red berries" },
+    { "id": "pileated-woodpecker","row": 3, "col": 4, "name": "Pileated Woodpecker",    "notes": "Red crest, black-and-white face, on a tree trunk" },
+    { "id": "belted-kingfisher",  "row": 3, "col": 5, "name": "Belted Kingfisher",      "notes": "Shaggy blue crest, blue-gray and rufous breast band" },
+    { "id": "great-blue-heron",   "row": 4, "col": 1, "name": "Great Blue Heron",       "notes": "Long neck, dagger bill, marsh water" },
+    { "id": "wood-duck",          "row": 4, "col": 2, "name": "Wood Duck",              "notes": "Iridescent green crest, red eye, chestnut breast" },
+    { "id": "wild-turkey",        "row": 4, "col": 3, "name": "Wild Turkey",            "notes": "Fanned tail, blue-and-red bare head" },
+    { "id": "canada-goose",       "row": 4, "col": 4, "name": "Canada Goose",           "notes": "Black neck, white chinstrap, lake" },
+    { "id": "ruby-throated-hummingbird", "row": 4, "col": 5, "name": "Ruby-throated Hummingbird", "notes": "Hovering, red throat, red tubular flowers" }
+  ]
+}
