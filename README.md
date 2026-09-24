@@ -99,6 +99,7 @@ tools/verify-save.mjs      autosave / Continue checks with real reloads (Playwri
 tools/verify-polish.mjs    keyboard, labels, sound, animation, contrast checks (Playwright)
 tools/verify-offline.mjs   offline, install and update checks (Playwright)
 tools/verify-music.mjs     recorded music transitions with the real MP3s (Playwright)
+tools/make_bird_calls.py   rebuilds the bird-call clips in assets/audio/ (see CREDITS.md)
 tools/build-sw.mjs         writes sw.js's precache list + content-hash VERSION
 tools/make_icons.py        builds icons/ from the cropped tiles
 manifest.webmanifest       install metadata (relative start_url / scope)
@@ -290,6 +291,15 @@ Music uses the two recorded tracks in the repo root, played by
   Files are fetched only after the first gesture. Any that are missing or fail
   to play keep the synthesized sound, so the synthesized sounds are always the
   fallback.
+- **Bird calls:** `assets/audio/` holds five short real calls, named by tile
+  ID: `american-crow`, `common-raven`, `bald-eagle`, `northern-cardinal` and
+  `wood-duck` (1–2.5 s each, 8–18 KB). They come from Wikimedia Commons and
+  are public domain, except the Wood Duck, which is CC BY-SA 3.0. The game
+  doesn't play them yet.
+  - `assets/audio/CREDITS.md` lists each clip's source page, creator, license
+    and edits.
+  - `python3 tools/make_bird_calls.py` rebuilds them from the sources. It
+    needs `pip install numpy imageio-ffmpeg`.
 
 **The game is identical without any of it.** With Music and Sound effects off
 and Animations on Minimal, every rule, score and control is unchanged; the
@@ -691,7 +701,7 @@ npm run test:save
 `/Bird-Mahjong/`, the same path GitHub Pages uses, and checks:
 
 - **First load:** the worker takes control, and one versioned cache holds all
-  72 precached files. There's no reload or update banner on first install.
+  77 precached files. There's no reload or update banner on first install.
 - **Install:** in a regular Chromium profile, the manifest parses without
   errors, `start_url` and `scope` resolve to `/Bird-Mahjong/`, and Chromium
   reports **no installability errors**. Chromium offers installation itself,
@@ -817,7 +827,7 @@ change.
 **Offline needs one successful online load.** That first visit registers
 `sw.js`, which precaches the whole game into one versioned cache: HTML, CSS,
 every JS module, the manifest, the icons, and all 40 cropped bird tiles (the
-120px and full-resolution WebP), and the two music tracks, about 6.8 MB in all
+120px and full-resolution WebP), the two music tracks and the five bird calls, about 6.8 MB in all
 (the tracks are about 5.6 MB). From then on the game loads and
 plays fully offline, including deep links like `?seed=123`, autosave and
 Continue.
