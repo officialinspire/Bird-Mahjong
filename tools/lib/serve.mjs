@@ -13,7 +13,7 @@ export const BASE = "/Bird-Mahjong/";
 const TYPES = {
   ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript",
   ".json": "application/json", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
-  ".webmanifest": "application/manifest+json", ".mp3": "audio/mpeg",
+  ".webmanifest": "application/manifest+json", ".mp3": "audio/mpeg", ".mp4": "video/mp4", ".webm": "video/webm",
 };
 
 /**
@@ -50,9 +50,31 @@ export function serve() {
   }));
 }
 
-/** Chromium, from CHROMIUM_PATH if set, otherwise Playwright's download. */
-export function launchBrowser() {
-  return chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+/** Chromium's launch options: CHROMIUM_PATH if set, otherwise Playwright's download. */
+export const launchOptions = () => (process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+
+export const INTRO_SEEN_KEY = "inspireBirdMahjong:introSeen";
+/** Init script: this session has already seen the INSPIRE intro. */
+export function skipIntro(key) {
+  try { sessionStorage.setItem(key, "1"); } catch { /* storage blocked: the intro's failure paths cover it */ }
+}
+
+/**
+ * Chromium for the test suites. Start goes straight to the menu in every
+ * context (the INSPIRE intro counts as already seen this session), since
+ * only tools/verify-intro.mjs is about the intro; it passes { intro: true }.
+ */
+export async function launchBrowser({ intro = false } = {}) {
+  const browser = await chromium.launch(launchOptions());
+  if (!intro) {
+    const newContext = browser.newContext.bind(browser);
+    browser.newContext = async (...args) => {
+      const context = await newContext(...args);
+      await context.addInitScript(skipIntro, INTRO_SEEN_KEY);
+      return context;
+    };
+  }
+  return browser;
 }
 
 /**

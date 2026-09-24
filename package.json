@@ -9,7 +9,7 @@
     "test:crops": "python3 tools/verify_crops.py",
     "test:layout": "node tools/verify-layout.mjs",
     "test:play": "node tools/verify-play.mjs",
-    "test": "npm run test:logic && npm run test:crops && npm run test:layout && npm run test:play && npm run test:save && npm run test:polish && npm run test:clearing && npm run test:offline && npm run test:music && npm run test:calls && npm run test:release",
+    "test": "npm run test:logic && npm run test:crops && npm run test:layout && npm run test:play && npm run test:save && npm run test:polish && npm run test:clearing && npm run test:offline && npm run test:music && npm run test:calls && npm run test:intro && npm run test:release",
     "test:save": "node tools/verify-save.mjs",
     "test:polish": "node tools/verify-polish.mjs",
     "test:clearing": "node tools/verify-clearing.mjs",
@@ -18,7 +18,8 @@
     "test:offline": "node tools/verify-offline.mjs",
     "test:release": "node tools/verify-release.mjs",
     "test:music": "node tools/verify-music.mjs",
-    "test:calls": "node tools/verify-calls.mjs"
+    "test:calls": "node tools/verify-calls.mjs",
+    "test:intro": "node tools/verify-intro.mjs"
   },
   "devDependencies": {
     "playwright": "^1.55.0"
