@@ -28,6 +28,8 @@ assets/contact-sheet.png   labelled overview of all crops (generated)
 tools/crop_tiles.py        cropping script
 tools/verify_crops.py      crop sanity checks
 tools/requirements.txt     Python deps for the tools only
+js/game/                   pure game logic (no DOM): geometry, rules, generator, game
+tests/                     unit tests for the game logic (node --test)
 tools/verify-layout.mjs    responsive layout checks (Playwright)
 package.json               dev-only scripts; the site itself needs no npm
 ```
@@ -100,6 +102,65 @@ game. When reduced motion is on, from the OS or from Settings, they stay still
 in a static scatter and screen fades are turned off. *Full* in Settings
 overrides the OS preference.
 
+## Game logic
+
+`js/game/` is plain ES modules with no DOM access, so it runs unchanged in the
+browser and in Node tests.
+
+| Module | What it does |
+|--------|--------------|
+| `geometry.js` | Preset board layouts and the precomputed cover/left/right links between tiles |
+| `rules.js` | `isFree`, `isCovered`, `isSideBlocked`, `birdsMatch`, `canRemovePair`, `availableMatches` |
+| `generator.js` | Solvable board generation (`generateBoard`) and re-dealing for Shuffle |
+| `game.js` | Immutable game state plus actions: `createGame`, `selectTile`, `removePair`, `undo`, `useHint`, `shuffleRemaining`, `isWon`, `isStuck` |
+| `birds.js`, `rng.js` | Bird IDs (in sheet order) and a seeded PRNG |
+
+**Rules**
+
+- Positions use half-tile units: a tile at `(x, y, z)` covers a 2×2 block of
+  cells, so upper layers and wing tiles can sit half a tile off the grid.
+- A tile is **covered** when any tile on a higher layer overlaps its footprint.
+- A tile is **side-blocked** when tiles on its own layer touch *both* its left
+  and right edges. A tile offset by half a row still touches.
+- A tile is **selectable (free)** only when it is not covered and not
+  side-blocked.
+- Two tiles **match** only when they have exactly the same bird ID. Look-alikes
+  like the crow and raven never match.
+
+**Layouts**
+
+| Difficulty | Layout | Tiles | Birds | Shape |
+|------------|--------|-------|-------|-------|
+| Easy | `meadow` | 48 | 12 | 8×4 base, 6×2, 2×2 |
+| Intermediate | `forest-edge` | 64 | 16 | 8×5 base, 6×3, half-offset 3×2 |
+| Advanced | `deep-woods` | 72 | 18 | turtle: 12×4 base plus side wings, 8×2, 4×1, 2×1 |
+| Insane | `old-growth` | 80 | 20 | 10×4 base, half-offset 9×3, 6×2, capstone |
+
+Every bird appears exactly four times, so the largest board holds 80 tiles
+(20 birds × 4).
+
+**Solvable by construction.** `generateBoard` never deals birds at random and
+hopes. Instead it:
+
+1. Searches for a legal order to clear the *empty* geometry two free tiles at
+   a time. This is a randomized depth-first search that tries higher layers
+   first and backtracks out of dead ends, with a node budget and restarts.
+2. Gives each pair in that order a bird. Every bird gets exactly two pairs,
+   which makes four copies.
+
+Replaying those pairs in order always clears the board, so each new board
+carries its `solution`. Boards are reproducible from a `seed`. Shuffle uses the
+same method on the remaining tiles, so a shuffled board is always solvable too.
+
+Run `npm run test:logic`, or `node --test "tests/*.test.js"`, to run the tests.
+They need no dependencies. The tests cover:
+
+- blocked, covered and free tiles, including half-tile offsets, and matching
+- 200 seeds per preset: exactly four copies per bird, and the solution replayed
+  independently through the rules
+- dead-end backtracking, and provably unsolvable geometries
+- select, deselect, mismatch, match, undo, hint, stuck and shuffle
+
 ## Running locally
 
 Serve the folder over HTTP rather than opening `index.html` from disk. The app
@@ -157,7 +218,7 @@ flow (any key to start, Escape to pause and to go back).
 npm install                      # installs Playwright (dev only)
 npx playwright install chromium  # or set CHROMIUM_PATH=/path/to/chrome
 npm run test:layout -- shots/    # optional dir for per-screen screenshots
-npm test                         # crop checks + layout checks
+npm test                         # logic tests + crop checks + layout checks
 ```
 
 ## Deploying to GitHub Pages
