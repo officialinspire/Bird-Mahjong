@@ -119,7 +119,7 @@ describe("playing a game", () => {
     assert.deepEqual(after, before, "same multiset of birds");
     assert.deepEqual(shuffled.removed, state.removed, "same positions");
     assert.equal(shuffled.shuffles, 1);
-    assert.equal(shuffled.history.length, 0);
+    assert.equal(shuffled.history.length, state.history.length, "undo history is kept");
 
     let replayed = shuffled;
     for (const [a, b] of shuffled.solution) replayed = removePair(replayed, a, b);

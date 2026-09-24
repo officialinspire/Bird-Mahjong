@@ -6,8 +6,8 @@
 
 import { BIRD_IDS } from "../game/birds.js";
 import {
-  createGame, findMatches, isStuck, isWon, selectTile, shuffleRemaining, tileIsFree,
-  tilesLeft, undo, useHint,
+  createGame, findMatches, isWon, recoveryFor, restartBoard, selectTile, shuffleRemaining,
+  tileIsFree, tilesLeft, undo, useHint,
 } from "../game/game.js";
 import { getLayout } from "../game/geometry.js";
 import { isCovered } from "../game/rules.js";
@@ -65,13 +65,42 @@ export function createGameController({ elements, reducedMotion, onWin }) {
     return { removed, free: !removed && tileIsFree(state, i), covered: isCovered(layout.links, state.removed, i) };
   }
 
+  // Recovery is recomputed only when the state object changes (the rescue
+  // check runs a search, so skip it on selection-only redraws of the same state).
+  let recoveryCache = { state: null, value: "none" };
+  function recovery() {
+    if (finished || !state) return "none";
+    if (recoveryCache.state !== state) recoveryCache = { state, value: recoveryFor(state) };
+    return recoveryCache.value;
+  }
+
   function sync() {
     view.sync(state, info, { hint });
     renderStats();
-    elements.undo.disabled = state.history.length === 0 || finished;
+    const noHistory = state.history.length === 0 || finished;
+    elements.undo.disabled = noHistory;
     elements.hint.disabled = finished;
-    elements.shuffle.disabled = finished;
-    elements.shuffle.classList.toggle("btn--primary", !finished && isStuck(state));
+    renderStuck(recovery(), noHistory);
+  }
+
+  /** The friendly "no pairs left" panel: Shuffle when it can help, else Restart. */
+  function renderStuck(kind, noHistory) {
+    const { panel, title, text, shuffle, restart, undo: undoButton } = elements.stuck;
+    const wasHidden = panel.hidden;
+    panel.hidden = kind === "none";
+    elements.boardArea.classList.toggle("is-stuck", kind !== "none");
+    if (kind === "none") return;
+    const canShuffle = kind === "shuffle";
+    shuffle.hidden = !canShuffle;
+    restart.hidden = canShuffle;
+    undoButton.disabled = noHistory;
+    title.textContent = canShuffle ? "No matching pairs left" : "These tiles can't all be cleared";
+    text.textContent = canShuffle
+      ? "Shuffle re-deals the remaining birds so there's always a way to finish. Your score stays."
+      : "No shuffle can clear what's left. Restart this board from the beginning, or undo a pair or two.";
+    say(canShuffle ? "No matching pairs left — try a shuffle." : "No shuffle can clear these tiles.", "warn");
+    // Move focus to the offer when it first appears, for keyboard and screen-reader users.
+    if (wasHidden) (canShuffle ? shuffle : restart).focus({ preventScroll: true });
   }
 
   function renderStats() {
@@ -173,9 +202,8 @@ export function createGameController({ elements, reducedMotion, onWin }) {
       sync();
       say("Board cleared!", "good");
       setTimeout(() => onWin(summary()), reducedMotion() ? 150 : WIN_DELAY_MS);
-    } else if (isStuck(state)) {
-      say("No free pairs left — tap Shuffle to re-deal.", "warn");
     }
+    // A stuck board is picked up by sync() → renderStuck().
   }
 
   function matchMessage(name) {
@@ -214,9 +242,8 @@ export function createGameController({ elements, reducedMotion, onWin }) {
     if (hint) {
       say(`Hint: the two ${pluralName(birdName(state.birds[hint[0]]))} marked “?” match.`);
       view.tileElement(hint[0]).scrollIntoView({ block: "nearest", inline: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
-    } else {
-      say("No free pairs — tap Shuffle to re-deal.", "warn");
     }
+    // No pair at all: sync() shows the stuck panel and says so.
     sync();
   }
 
@@ -224,32 +251,57 @@ export function createGameController({ elements, reducedMotion, onWin }) {
     if (!state || finished) return;
     const next = shuffleRemaining(state);
     hint = null;
-    if (next.shuffles === state.shuffles) {
-      // No deal can clear what's left (e.g. two tiles stacked on each other).
-      say("No re-deal can clear these tiles — use Undo or start a new board.", "warn");
-    } else {
+    if (next !== state) {
       state = next;
-      say("Re-dealt the remaining tiles — still solvable.");
+      sync();
+      say("Shuffled! There's a way to finish from here — Hint will show it.", "good");
+      focusBoard();
+    } else {
+      sync(); // shuffle couldn't help; the panel switches to Restart Board
     }
+  }
+
+  function restart() {
+    if (!state || finished) return;
+    state = restartBoard(state);
+    hint = null;
+    elapsedMs = 0;
+    runningSince = null;
+    startClock();
     sync();
+    say("Back to the start of this board.");
+    focusBoard();
   }
 
   function undoMove() {
     if (!state || finished || state.history.length === 0) return;
+    const before = state.score;
     state = undo(state);
     hint = null;
-    say("Took back the last pair.");
     sync();
+    const back = before - state.score;
+    say(back ? `Put the last pair back (score ${state.score.toLocaleString()}).` : "Put the last pair back.");
+  }
+
+  /** After a recovery action the panel is gone; send focus to the first free tile. */
+  function focusBoard() {
+    const first = elements.board.querySelector(".tile.is-free");
+    if (first) first.focus({ preventScroll: true });
   }
 
   elements.hint.addEventListener("click", showHint);
-  elements.shuffle.addEventListener("click", shuffle);
   elements.undo.addEventListener("click", undoMove);
+  elements.stuck.shuffle.addEventListener("click", shuffle);
+  elements.stuck.restart.addEventListener("click", restart);
+  elements.stuck.undo.addEventListener("click", undoMove);
 
   return {
     start,
+    restart,
     pause: stopClock,
     resume: startClock,
+    /** Matches made on the current, unfinished board (New Game asks first). */
+    hasProgress: () => !!state && !finished && state.history.length > 0,
     refresh: () => state && sync(),
     get state() { return state; },
     get view() { return view; },

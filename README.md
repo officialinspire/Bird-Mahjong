@@ -81,10 +81,10 @@ The flow is the same as our Sudoku and Deja Vu games:
 **Game** → **Results**. **How to Play** and
 **Settings** open from the menu; each has a ← Menu button.
 
-- **Game** has a header (☰ menu, difficulty, pause), stats (pairs left, score,
-  streak), a status line, the board and a Hint / Shuffle / Undo toolbar. The ☰
-  button pauses rather than leaving, so a stray tap can't end a game. No clock
-  is shown during play.
+- **Game** has a header (☰ menu and difficulty), stats (pairs left, score,
+  streak), a status line, the board and a **Hint · Undo · Pause · New Game**
+  toolbar. The ☰ button pauses rather than leaving, so a stray tap can't end a
+  game. No clock is shown during play. See *Help and recovery* below.
 - **Results** shows the score, your best score for that difficulty (★ when
   it's a new best), pairs, best streak, and your time and fastest time as
   personal stats.
@@ -157,6 +157,35 @@ and images stay exact. Zoomed tiles load the full-resolution WebP through
 
 `?seed=123` in the URL replays a specific first board, which is handy for
 sharing a deal or reproducing a bug.
+
+## Help and recovery
+
+None of these punish the player.
+
+| Control | What it does |
+|---------|--------------|
+| **Hint** | Highlights one pair you can legally take right now (dashed ring and "?"). Score and streak are unchanged. While the board's verified route is intact, the hint is the next pair on it, so following hints always finishes the board. Once you've left the route, it suggests a legal pair that doesn't immediately leave the board stuck. |
+| **Undo** | Puts the last removed pair back, along with exactly the score, streak and best streak from before it. You can undo all the way back, even after a shuffle, because removed tiles keep their birds. |
+| **Pause** | Opens the pause dialog: Resume, Restart Board, New Game or Main Menu. The ☰ button and Escape do the same, and the game pauses when the tab is hidden. |
+| **New Game** | Deals a fresh board of the same difficulty. If you've matched anything, it asks first, with *Keep playing* focused. |
+
+**Stuck boards.** After every change the game checks whether any legal
+matching pair is left. If none is, a friendly panel slides up over the board
+(a bottom sheet on phones), and keyboard focus moves to its main button.
+
+- **Shuffle tiles:** shown when a re-deal can help. It reassigns bird IDs on
+  the remaining positions only; the same birds stay in play. It first searches
+  for an order that clears those positions, then deals the birds along that
+  order, then replays the whole route through the rules before accepting it
+  (`shuffleRemaining` + `verifyRoute` in `js/game/game.js`). Score, streak,
+  pairs left and undo history are kept.
+- **Restart Board:** shown instead when no deal of the remaining positions can
+  be cleared, for example one tile stacked on its only twin. It returns to this
+  board's original deal and route, with a fresh score.
+- **Undo pair** is offered in both cases.
+
+`recoveryFor(state)` decides which offer to show: `"none"`, `"shuffle"` or
+`"restart"`.
 
 ## Game logic
 
@@ -248,6 +277,14 @@ They need no dependencies. The tests cover:
 - scoring: +100 per pair, the capped streak bonus and the switch that turns it
   off, no time or help penalties, and undo taking back exact points
 - personal bests per difficulty, including corrupt and blocked storage
+- recovery (`tests/recovery.test.js`): random play on 400 seeds per difficulty
+  finds real stuck boards. Every rescuable one shuffles to a verified route
+  that keeps the birds, score and streak, and then finishes by following hints.
+  Dead ends (which occur naturally on Hard, plus a hand-built Easy one) refuse
+  to shuffle and restart to the original deal. The tests also check that hints
+  are always legal and free, that hints alone clear 300 fresh boards, and that
+  undo restores exact prior score, streak and best streak, including after a
+  mismatch or a shuffle.
 - dead-end backtracking, and provably unsolvable geometries
 - select, deselect, mismatch, match, undo, hint, stuck and shuffle
 
@@ -331,6 +368,15 @@ board's solution from the same pure logic. It checks:
 - **Full games:** Hard won by touch taps on a 320px phone, and Medium won by
   mouse clicks on desktop. Both end on the results screen with the maximum
   clean-clear score.
+- **Help controls:** Undo returns the exact prior score (210 → 100), Hint is
+  legal and free, Pause opens and resumes, and New Game asks before discarding
+  progress (and doesn't ask when there's none).
+- **Recovery:** seeded lines leave Easy (touch), Hard (touch, 320px) and
+  Medium (mouse) boards stuck. Each time, the Shuffle offer appears with focus
+  and its buttons fully on screen and uncovered. Undo from the offer returns
+  the exact points, and re-matching restores them. Shuffle keeps score and
+  pairs, and then following Hint wins. A Hard dead end offers Restart Board,
+  which brings back all 60 tiles, and the original solution then wins.
 - **Bests and time:** no clock is shown during play. A first clear sets the
   best, and the picker shows it only for that difficulty. Medium keeps its own
   best, and a higher Easy score replaces the Easy best. Time is labelled as

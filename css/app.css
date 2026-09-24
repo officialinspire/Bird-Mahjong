@@ -431,7 +431,7 @@ input[role="switch"]:checked::after { transform: translateX(22px); }
 .game-side { display: contents; }
 .game-stats { grid-area: stats; }
 .game-message { grid-area: message; }
-.board-viewport { grid-area: board; }
+.board-area { grid-area: board; }
 .game-tools { grid-area: tools; }
 
 .game-stats {
@@ -481,8 +481,18 @@ input[role="switch"]:checked::after { transform: translateX(22px); }
 .game-message[data-tone="warn"] { color: var(--bark); }
 .game-message[data-tone="warn"]::before { content: "• "; color: var(--cardinal); }
 
+/* The board and its stuck panel share one area. */
+.board-area {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
 .board-viewport {
   position: relative;
+  flex: 1;
+  min-width: 0;
+  isolation: isolate;       /* keep tile z-indexes inside the board */
   display: flex;          /* auto margins centre the board without clipping it */
   overflow: auto;
   overscroll-behavior: contain;
@@ -800,8 +810,8 @@ html[data-tile-labels="on"] .tile-label { display: block; }
   .game-stats dt { font-size: 0.62rem; letter-spacing: 0.05em; white-space: nowrap; }
   .game-stats dd { font-size: 1.1rem; }
   .game-title h1 { font-size: 1.15rem; }
-  .game-tools { gap: 6px; }
-  .game-tools .btn--small { padding-inline: 0.8em; }
+  .game-tools { gap: 5px; }
+  .game-tools .btn--small { padding-inline: 0.6em; font-size: 0.88rem; }
 }
 
 /* ---------- Scores ---------- */
@@ -830,3 +840,57 @@ html[data-tile-labels="on"] .tile-label { display: block; }
   color: var(--leaf-dark);
 }
 .results-best[data-new-best="true"]::before { content: "★ "; }
+
+/* ---------- Game controls: header spacer, stuck panel, dialogs ---------- */
+
+.header-spacer { width: 44px; height: 44px; }
+
+.board-area.is-stuck .board-viewport { filter: saturate(0.7); }
+.board-area.is-stuck .board-viewport::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(251 246 232 / 0.35);
+  pointer-events: none;
+}
+
+.stuck-panel {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  width: min(calc(100% - 24px), 380px);
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  text-align: center;
+  border-radius: var(--radius);
+  background: var(--paper);
+  border: 2px solid var(--rim);
+  box-shadow: 0 12px 36px rgb(47 42 32 / 0.28);
+  animation: stuck-in 260ms ease-out;
+}
+.stuck-panel[hidden] { display: none; }
+.stuck-panel h2 { font-size: 1.35rem; color: var(--leaf-dark); }
+.stuck-panel p:not(.eyebrow) { font-size: 0.9rem; color: var(--bark-soft); }
+.stuck-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.stuck-actions .btn { min-height: 46px; padding-inline: 0.8em; font-size: 0.95rem; white-space: nowrap; }
+.stuck-actions .btn[hidden] { display: none; }
+@keyframes stuck-in { from { opacity: 0; transform: translate(-50%, 12px); } }
+.reduce-motion .stuck-panel { animation: none; }
+
+/* Phones and short screens: the board area is too small to hold the offer,
+   so it becomes a bottom sheet over the lower part of the screen. */
+@media (max-width: 699px), (max-height: 560px) {
+  .stuck-panel {
+    position: fixed;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 24px);
+    z-index: 20;
+  }
+}
+
+.dialog-text { color: var(--bark-soft); margin: -4px 0 4px; }

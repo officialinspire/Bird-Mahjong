@@ -18,13 +18,18 @@
 //     ending on the results screen with the score (100 per pair plus streak
 //     bonus); no clock is shown during play
 //   * best scores are kept per difficulty and shown on the picker
+//   * Hint (legal pair, free), Undo (exact prior score), Pause, New Game
+//     (asks before discarding progress)
+//   * recovery: seeded lines that leave the board stuck get a Shuffle offer
+//     (Undo from the offer, Shuffle, then Hint to the finish), and a dead end
+//     gets Restart Board, whose original solution then wins
 //
 // Usage: node tools/verify-play.mjs [screenshot-dir]
 
 import fs from "node:fs";
 import path from "node:path";
 import { launchBrowser, serve } from "./lib/serve.mjs";
-import { SEED, afterMatch, playPairs, solutionFor, startDifficulty, tile } from "./lib/play.mjs";
+import { SEED, afterMatch, findStuckLine, followHints, playPairs, solutionFor, startDifficulty, tile } from "./lib/play.mjs";
 import { DIFFICULTIES } from "../js/config.js";
 import { MIN_TILE } from "../js/ui/board-view.js";
 import { maxScore } from "../js/game/score.js";
@@ -197,22 +202,59 @@ async function interactions(browser, url, name, options, input) {
   s = await boardState(page);
   check(s.pairs === "11" && s.score === "100" && /Matched.*\+100/.test(s.message), "matching removes both tiles, counts down pairs and scores +100", `${s.pairs} pairs, score ${s.score}, "${s.message}"`);
 
-  // Undo, hint, shuffle.
+  // Undo restores the pair and exactly the score before it — also mid-streak.
   await press("#btn-undo");
   s = await boardState(page);
   check(s.pairs === "12" && s.visible === 24 && s.score === "0", "undo restores the pair and its points");
+  const [p1, p2] = solutionFor("easy");
+  for (const [x, y] of [p1, p2]) { await press(tile(x)); await press(tile(y)); await afterMatch(page, x, y); }
+  const twoPairs = (await boardState(page)).score;
+  await press("#btn-undo");
+  s = await boardState(page);
+  check(twoPairs === "210" && s.score === "100" && s.pairs === "11", `undo after a streak returns the prior score (${twoPairs} → ${s.score})`);
+
+  // Hint: one legal matching pair, free of charge.
+  const scoreBeforeHint = s.score;
   await press("#btn-hint");
   const hinted = await page.evaluate(() => {
     const h = [...document.querySelectorAll("#board .tile.is-hint")];
-    return { n: h.length, same: h.length === 2 && h[0].dataset.bird === h[1].dataset.bird, badge: h[0] && getComputedStyle(h[0].querySelector(".tile-badge"), "::before").content, dashed: h[0] && getComputedStyle(h[0]).outlineStyle };
+    return {
+      n: h.length,
+      same: h.length === 2 && h[0].dataset.bird === h[1].dataset.bird,
+      free: h.every((t) => t.classList.contains("is-free")),
+      badge: h[0] && getComputedStyle(h[0].querySelector(".tile-badge"), "::before").content,
+      dashed: h[0] && getComputedStyle(h[0]).outlineStyle,
+      score: document.getElementById("stat-score").textContent,
+    };
   });
-  check(hinted.n === 2 && hinted.same && hinted.badge.includes("?") && hinted.dashed === "dashed", "hint marks a matching free pair with a dashed ring and ? badge");
-  const before = await page.evaluate(() => [...document.querySelectorAll("#board .tile:not([hidden])")].map((t) => t.dataset.bird).sort().join());
-  const order = await page.evaluate(() => [...document.querySelectorAll("#board .tile")].map((t) => t.dataset.bird).join());
-  await press("#btn-shuffle");
-  const after = await page.evaluate(() => [...document.querySelectorAll("#board .tile:not([hidden])")].map((t) => t.dataset.bird).sort().join());
-  const order2 = await page.evaluate(() => [...document.querySelectorAll("#board .tile")].map((t) => t.dataset.bird).join());
-  check(before === after && order !== order2, "shuffle re-deals the same birds");
+  check(hinted.n === 2 && hinted.same && hinted.free && hinted.badge.includes("?") && hinted.dashed === "dashed",
+    "hint marks one legal matching pair with a dashed ring and ? badge");
+  check(hinted.score === scoreBeforeHint, "hint costs no points");
+
+  // Pause from the toolbar.
+  await press("#btn-pause");
+  check(await page.evaluate(() => document.getElementById("pause-dialog").open), "Pause opens the pause dialog");
+  await press("#pause-dialog button[value=resume]");
+  check(!(await page.evaluate(() => document.getElementById("pause-dialog").open)), "Resume closes it");
+
+  // New Game with progress asks first; "Keep playing" changes nothing.
+  const birdsBefore = await page.evaluate(() => [...document.querySelectorAll("#board .tile")].map((t) => t.dataset.bird).join());
+  await press("#btn-game-new");
+  check(await page.evaluate(() => document.getElementById("new-game-dialog").open), "New Game asks before discarding progress");
+  check(await page.evaluate(() => document.activeElement.id === "btn-new-game-cancel"), "the safe choice (Keep playing) has focus");
+  await press("#btn-new-game-cancel");
+  s = await boardState(page);
+  check(s.pairs === "11" && s.score === "100", "Keep playing leaves the board as it was");
+  // Confirming deals a fresh board.
+  await press("#btn-game-new");
+  await press("#btn-new-game-confirm");
+  await page.waitForFunction(() => document.getElementById("stat-pairs").textContent === "12");
+  s = await boardState(page);
+  const birdsAfter = await page.evaluate(() => [...document.querySelectorAll("#board .tile")].map((t) => t.dataset.bird).join());
+  check(s.score === "0" && s.visible === 24 && birdsAfter !== birdsBefore, "New board starts fresh");
+  // With no progress, New Game doesn't ask.
+  await press("#btn-game-new");
+  check(!(await page.evaluate(() => document.getElementById("new-game-dialog").open)), "with no progress, New Game starts right away");
 
   check(errors.length === 0, "no page errors", errors.join("; "));
   if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `play-${name}-interactions.png`) });
@@ -309,6 +351,104 @@ async function fullGame(browser, url, name, options, difficulty, input) {
   await context.close();
 }
 
+/** Load a seeded board and play moves that leave it stuck. */
+async function reachStuck(browser, url, options, difficulty, kind, input) {
+  const line = findStuckLine(difficulty, kind);
+  const context = await browser.newContext({ ...options, reducedMotion: "reduce" });
+  const page = await context.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto(`${url}?seed=${line.seed}`, { waitUntil: "networkidle" });
+  await startDifficulty(page, difficulty);
+  await playPairs(page, line.moves, { input });
+  return { context, page, errors, line };
+}
+
+/** The stuck panel's state, and whether its buttons are really usable. */
+const panelState = (page) =>
+  page.evaluate(() => {
+    const panel = document.getElementById("stuck-panel");
+    const vis = (id) => !document.getElementById(id).hidden;
+    const usable = [...panel.querySelectorAll("button:not([hidden])")].every((b) => {
+      const r = b.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return r.width > 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight && hit && b.contains(hit) && r.height >= 44;
+    });
+    return {
+      shown: !panel.hidden,
+      shuffle: vis("btn-stuck-shuffle"),
+      restart: vis("btn-stuck-restart"),
+      title: document.getElementById("stuck-title").textContent,
+      focus: document.activeElement?.id,
+      usable,
+      score: document.getElementById("stat-score").textContent,
+      pairs: document.getElementById("stat-pairs").textContent,
+      tiles: document.querySelectorAll("#board .tile:not([hidden])").length,
+    };
+  });
+
+async function recovery(browser, url) {
+  const cases = [
+    ["phone", PHONE, "easy", "touch"],
+    ["320px phone", SMALL_PHONE, "hard", "touch"],
+    ["desktop", DESKTOP, "medium", "mouse"],
+  ];
+  for (const [name, options, difficulty, input] of cases) {
+    console.log(`recovery: shuffle (${name}, ${difficulty}, ${input})`);
+    const { context, page, errors, line } = await reachStuck(browser, url, options, difficulty, "shuffle", input);
+    const press = (sel) => (input === "touch" ? page.locator(sel).tap() : page.locator(sel).click());
+    let p = await panelState(page);
+    check(p.shown && p.shuffle && !p.restart && p.focus === "btn-stuck-shuffle",
+      `after ${line.moves.length} pairs with none left, a Shuffle offer appears and takes focus`, JSON.stringify(p));
+    check(p.usable, "the offer's buttons are on screen, uncovered and full-size");
+    if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `recovery-${difficulty}-shuffle.png`) });
+
+    // Undo from the panel backs out with exact points; redoing it is stuck again.
+    const stuckScore = p.score;
+    await press("#btn-stuck-undo");
+    const undone = await panelState(page);
+    check(Number(undone.pairs) === Number(p.pairs) + 1 && Number(undone.score.replace(/,/g, "")) < Number(stuckScore.replace(/,/g, "")),
+      `Undo in the offer puts the last pair back (${stuckScore} → ${undone.score})`);
+    const [x, y] = line.moves.at(-1);
+    await page.waitForTimeout(400);
+    await press(tile(x));
+    await press(tile(y));
+    await afterMatch(page, x, y);
+    p = await panelState(page);
+    check(p.shown && p.score === stuckScore, "re-matching it restores the same score and the offer returns");
+
+    // Shuffle: same pairs left and score, a legal pair exists, then hints finish the board.
+    await press("#btn-stuck-shuffle");
+    const after = await panelState(page);
+    check(!after.shown && after.pairs === p.pairs && after.score === p.score, "Shuffle keeps pairs left and score, and closes the offer");
+    const hints = await followHints(page, { input });
+    const done = await page.isVisible("#screen-results");
+    check(done && errors.length === 0, `following Hint after the shuffle clears the board (${hints} hints)`, errors.join("; "));
+    await context.close();
+  }
+
+  console.log("recovery: restart (320px phone, hard, touch)");
+  {
+    const { context, page, errors, line } = await reachStuck(browser, url, SMALL_PHONE, "hard", "restart", "touch");
+    const p = await panelState(page);
+    check(p.shown && p.restart && !p.shuffle && p.focus === "btn-stuck-restart" && /can't all be cleared/.test(p.title),
+      `a dead end (seed ${line.seed}) offers Restart Board instead of Shuffle`, JSON.stringify(p));
+    check(p.usable, "Restart Board is on screen, uncovered and full-size");
+    if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, "recovery-hard-restart.png") });
+    await page.locator("#btn-stuck-restart").tap();
+    const fresh = await panelState(page);
+    check(!fresh.shown && fresh.tiles === 60 && fresh.pairs === "30" && fresh.score === "0", "Restart Board brings back the whole board");
+    const d = DIFFICULTIES.find((x) => x.id === "hard");
+    // The restarted deal is the original one, so its known solution still wins.
+    const { createGame } = await import("../js/game/game.js");
+    const original = createGame(d.layout, { seed: line.seed }).solution;
+    await playPairs(page, original, { input: "touch" });
+    await page.waitForSelector("#screen-results:not([hidden])");
+    check(errors.length === 0, "the restarted board's original solution wins", errors.join("; "));
+    await context.close();
+  }
+}
+
 async function bestScores(browser, url) {
   console.log("best scores and time");
   const context = await browser.newContext({ ...DESKTOP, reducedMotion: "reduce" });
@@ -379,6 +519,7 @@ async function main() {
   await fullGame(browser, url, "phone-touch", SMALL_PHONE, "hard", "touch");
   await fullGame(browser, url, "desktop-mouse", DESKTOP, "medium", "mouse");
   await bestScores(browser, url);
+  await recovery(browser, url);
 
   await browser.close();
   server.close();

@@ -26,7 +26,7 @@ function showScreen(name) {
   if (name === "difficulty") renderDifficulties(); // fresh best scores
   const leaving = state.screen;
   state.screen = name; // set first: closing the pause dialog checks it
-  if ($("#pause-dialog").open) $("#pause-dialog").close();
+  for (const dialog of ["#pause-dialog", "#new-game-dialog"]) if ($(dialog).open) $(dialog).close();
   if (leaving === "game" && name !== "game") game.pause();
 
   document.querySelectorAll(".screen").forEach((screen) => {
@@ -107,8 +107,16 @@ const game = createGameController({
     score: $("#stat-score"),
     streak: $("#stat-streak"),
     hint: $("#btn-hint"),
-    shuffle: $("#btn-shuffle"),
     undo: $("#btn-undo"),
+    boardArea: $("#board-area"),
+    stuck: {
+      panel: $("#stuck-panel"),
+      title: $("#stuck-title"),
+      text: $("#stuck-text"),
+      shuffle: $("#btn-stuck-shuffle"),
+      restart: $("#btn-stuck-restart"),
+      undo: $("#btn-stuck-undo"),
+    },
     zoom: {
       root: $("#zoom-controls"),
       in: $("#btn-zoom-in"),
@@ -161,10 +169,27 @@ function formatSeconds(total) {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
+function anyDialogOpen() {
+  return $("#pause-dialog").open || $("#new-game-dialog").open;
+}
+
 function openPause() {
-  if (state.screen !== "game" || $("#pause-dialog").open) return;
+  if (state.screen !== "game" || anyDialogOpen()) return;
   game.pause();
   $("#pause-dialog").showModal();
+}
+
+/** New Game from the toolbar: ask first if there's progress to lose. */
+function requestNewGame() {
+  if (state.screen !== "game" || anyDialogOpen()) return;
+  if (!game.hasProgress()) {
+    startGame(state.difficulty);
+    return;
+  }
+  game.pause();
+  $("#new-game-dialog").returnValue = "";
+  $("#new-game-dialog").showModal();
+  $("#btn-new-game-cancel").focus(); // the safe choice is the default
 }
 
 // ---------- Settings ----------
@@ -217,7 +242,7 @@ function onKeydown(event) {
   if (event.key !== "Escape") return;
   if (state.screen === "game") {
     // The open dialog handles its own Escape (closing = resume).
-    if (!$("#pause-dialog").open) {
+    if (!anyDialogOpen()) {
       event.preventDefault();
       openPause();
     }
@@ -244,9 +269,19 @@ function bindEvents() {
   $("#pause-dialog").addEventListener("close", () => {
     if (state.screen === "game") game.resume();
   });
-  $("#btn-restart").addEventListener("click", () => {
+  $("#btn-pause-restart").addEventListener("click", () => {
+    $("#pause-dialog").close();
+    game.restart();
+  });
+  $("#btn-pause-new").addEventListener("click", () => {
     $("#pause-dialog").close();
     startGame(state.difficulty);
+  });
+  $("#btn-game-new").addEventListener("click", requestNewGame);
+  $("#new-game-dialog").addEventListener("close", () => {
+    if (state.screen !== "game") return;
+    if ($("#new-game-dialog").returnValue === "new") startGame(state.difficulty);
+    else game.resume();
   });
   $("#btn-pause-menu").addEventListener("click", () => showScreen("menu"));
   $("#btn-play-again").addEventListener("click", () => startGame(state.difficulty));

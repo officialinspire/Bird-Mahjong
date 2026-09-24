@@ -78,7 +78,7 @@
           <h1 id="game-title">Bird Mahjong</h1>
           <p id="game-difficulty">Easy</p>
         </div>
-        <button type="button" class="icon-btn" id="btn-pause" aria-label="Pause game">&#10074;&#10074;</button>
+        <span class="header-spacer" aria-hidden="true"></span>
       </header>
 
       <div class="game-layout">
@@ -91,8 +91,9 @@
 
           <div class="game-tools" role="toolbar" aria-label="Game tools">
             <button type="button" class="btn btn--small" id="btn-hint">Hint</button>
-            <button type="button" class="btn btn--small" id="btn-shuffle">Shuffle</button>
             <button type="button" class="btn btn--small" id="btn-undo" disabled>Undo</button>
+            <button type="button" class="btn btn--small" id="btn-pause">Pause</button>
+            <button type="button" class="btn btn--small" id="btn-game-new">New Game</button>
             <div class="zoom-controls" id="zoom-controls" role="group" aria-label="Board zoom" hidden>
               <button type="button" class="btn btn--small btn--icon" id="btn-zoom-out" aria-label="Zoom out">&minus;</button>
               <button type="button" class="btn btn--small" id="btn-zoom-fit">Fit</button>
@@ -103,8 +104,23 @@
 
         <p id="game-message" class="game-message" role="status" aria-live="polite"></p>
 
-        <div id="board-viewport" class="board-viewport" role="group" aria-label="Tile board">
-          <div id="board" class="board-surface"></div>
+        <div class="board-area" id="board-area">
+          <div id="board-viewport" class="board-viewport" role="group" aria-label="Tile board">
+            <div id="board" class="board-surface"></div>
+          </div>
+
+          <!-- Shown when no legal pair remains. Not modal: Undo and the
+               toolbar stay usable, and the board can still be panned. -->
+          <div id="stuck-panel" class="stuck-panel" role="alertdialog" aria-labelledby="stuck-title" aria-describedby="stuck-text" hidden>
+            <p class="eyebrow">Take a breath</p>
+            <h2 id="stuck-title">No matching pairs left</h2>
+            <p id="stuck-text"></p>
+            <div class="stuck-actions">
+              <button type="button" class="btn btn--primary" id="btn-stuck-shuffle">Shuffle tiles</button>
+              <button type="button" class="btn btn--primary" id="btn-stuck-restart" hidden>Restart Board</button>
+              <button type="button" class="btn" id="btn-stuck-undo" aria-label="Undo last pair">Undo pair</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -113,8 +129,19 @@
           <p class="eyebrow">Resting on a branch</p>
           <h2 id="pause-title">Paused</h2>
           <button class="btn btn--primary" value="resume">Resume</button>
-          <button type="button" class="btn" id="btn-restart">New Board</button>
+          <button type="button" class="btn" id="btn-pause-restart">Restart Board</button>
+          <button type="button" class="btn" id="btn-pause-new">New Game</button>
           <button type="button" class="btn" id="btn-pause-menu">Main Menu</button>
+        </form>
+      </dialog>
+
+      <dialog id="new-game-dialog" class="dialog" aria-labelledby="new-game-title" aria-describedby="new-game-text">
+        <form method="dialog">
+          <p class="eyebrow">Fresh branches</p>
+          <h2 id="new-game-title">Start a new board?</h2>
+          <p id="new-game-text" class="dialog-text">This board's progress will be lost.</p>
+          <button class="btn btn--primary" value="new" id="btn-new-game-confirm">New board</button>
+          <button class="btn" value="cancel" id="btn-new-game-cancel">Keep playing</button>
         </form>
       </dialog>
     </section>
@@ -133,7 +160,8 @@
           <li><strong>Match pairs.</strong> Tap two identical bird tiles to remove them from the board.</li>
           <li><strong>Only free tiles move.</strong> A tile is free when nothing sits on top of it and its left or right side is open.</li>
           <li><strong>Clear the woodland.</strong> Remove every tile to win. There's no clock to beat and no way to lose. Take your time.</li>
-          <li><strong>Stuck?</strong> Use Hint to spot a free pair, Shuffle to rearrange the remaining tiles, or Undo to take back a move. None of them cost points.</li>
+          <li><strong>Need help?</strong> Hint highlights a pair you can take right now. Undo puts the last pair back, along with its points. Neither costs anything.</li>
+          <li><strong>Out of moves?</strong> If no pair is left, you'll be offered a Shuffle. It re-deals the birds on the remaining tiles and checks that there's a way to finish. If the tiles left can't be cleared by any deal, Restart Board takes you back to the start of the same board.</li>
         </ol>
 
         <h2>Reading the board</h2>
