@@ -58,6 +58,27 @@ a ✓; hinted tiles have a dashed ring and a "?".
   aren't part of this repo, so they aren't shown.
 - **One game per tab.** Playing in two tabs at once saves over the same slot;
   the most recent change wins.
+- **Audio waits for a tap.** Browsers only allow sound after a gesture, so
+  music starts on the first tap or key press. The bird calls load then too, and
+  a match made in the second or so before they're ready plays the chirp
+  instead.
+- **Only five birds have real calls.** American Crow, Common Raven, Bald Eagle,
+  Northern Cardinal and Wood Duck. The other 15 birds use the synthesized
+  chirp.
+- **Background tabs are silent.** Hiding the tab pauses the game and the
+  music. Phone settings such as a hardware silent switch can also mute Web
+  Audio; that's outside the game's control.
+- **Short waits are deliberate.**
+  - Taps are ignored for the 0.28 s while a matched pair fades out, so you
+    can't tap through it. With reduced motion this is a 0.12 s guard.
+  - Pause and New Game wait out the 1.5 s board-clear moment. The win is
+    recorded as soon as the board is cleared, even if the page is closed
+    during that moment.
+- **First visit downloads ~6.8 MB.** That's for offline play, and it's mostly
+  the two music tracks.
+- **Automated tests run in Chromium.** Firefox and Safari (including iOS) are
+  expected to work, since the game uses standard web APIs only, but they
+  aren't covered by the automated suites.
 
 `bird-mahjong-tiles.jpg` is the original 5 × 4 tile sheet. It is kept as-is and
 is only ever **read** by the tooling; every other image is derived from it.
@@ -97,6 +118,7 @@ tools/verify-layout.mjs    responsive layout checks (Playwright)
 tools/verify-play.mjs      touch and mouse play checks (Playwright)
 tools/verify-save.mjs      autosave / Continue checks with real reloads (Playwright)
 tools/verify-polish.mjs    keyboard, labels, sound, animation, contrast checks (Playwright)
+tools/verify-clearing.mjs  pair clearing: lift/fade, sparkle, fast taps, mid-animation Undo/Restart/Shuffle (Playwright)
 tools/verify-offline.mjs   offline, install and update checks (Playwright)
 tools/verify-music.mjs     recorded music transitions with the real MP3s (Playwright)
 tools/verify-calls.mjs     bird calls on cleared pairs with the real clips (Playwright)
@@ -233,15 +255,31 @@ sharing a deal or reproducing a bug.
 
 **Animations** (Settings → Animations: Match device / Minimal / Full):
 
-- On a match, the two tiles lift and fade (~0.3 s), and a small "+points" tag
-  floats up from them.
+- On a match, the two tiles lift gently and fade (0.28 s).
+  - Over each tile, four tiny specks of leaf, gold and sky drift out and one
+    small feather floats up (~0.5 s). A small "+points" tag floats up too.
+  - These accents are small, ignore taps and are hidden from screen readers,
+    so the board stays readable and responsive.
+- **Taps during the fade:** the board ignores taps until the matched pair has
+  gone. A tile the pair was covering can't be tapped through it, and a fast
+  double tap can't remove a pair twice.
+- **No leftovers:** every effect is tracked. Undo, Restart, Shuffle, New Game,
+  Continue and leaving the game screen settle the effects at once, so no
+  half-faded ghost tile, stray sparkle or old "+points" stays behind.
+  Shuffle never changes the bird on a tile that is still fading.
 - Clearing a board brings a restrained ~1.5 s moment: a soft glow and a dozen
   feathers in the palette colours drift up, a gentle chime plays, and then the
-  results appear.
+  results appear. Pause and New Game wait out this short moment, so the win
+  is always recorded.
 - *Match device* follows `prefers-reduced-motion`. *Minimal* (or the OS
-  preference) removes all movement: no floats, no feathers, no drifting
-  background, no screen fades, and results appear about 0.25 s after the last
-  match. *Full* overrides the OS preference.
+  preference) removes all movement: no lift, no sparkles, no floats, no
+  feathers, no drifting background and no screen fades.
+  - A matched pair disappears at once and play never waits for an animation.
+  - Only a 0.12 s guard remains, so a quick double tap can't land on the tile
+    underneath.
+  - Results appear about 0.25 s after the last match.
+
+  *Full* overrides the OS preference.
 
 **Music and Sound effects** each have their own switch and volume in
 Settings. Sound effects are synthesized with Web Audio in `js/ui/sound.js`.
@@ -775,6 +813,27 @@ Chromium and records every `<audio>` element and `play()` call. It checks:
   `NotSupportedError` falls back to the synthesized ambience.
 - **Offline:** both tracks are cached. They play offline and can seek, since
   the service worker answers range requests from the cache.
+
+## Checking pair clearing
+
+`tools/verify-clearing.mjs` (`npm run test:clearing`) checks in real Chromium:
+
+- **The effect:** a match lifts and fades the pair in 0.28 s with one small
+  sparkle and feather per tile. The accent takes no input and is hidden from
+  screen readers. Afterwards nothing is left behind.
+- **Fast taps:** a burst of taps (a a a b b b a b), double-clicks, and a whole
+  board hammered through as fast as input allows. Each pair is removed and
+  scored exactly once, with no ghost tiles.
+- **Uncovered tiles:** a tile uncovered by a match ignores a tap while the
+  pair is still fading over it, then selects normally.
+- **Mid-animation:** Undo, Restart (from the pause menu, and from the stuck
+  panel on a Hard board), Shuffle, and going to the menu then Continue. Each
+  settles every effect at once and shows exactly the tiles left. No timer
+  hides a restored tile later.
+- **Board-clear moment:** Pause and New Game wait, and results arrive with
+  every effect gone.
+- **Reduced motion:** the pair disappears at once with no sparkle or float. A
+  whole board at a quick human pace loses no taps.
 
 ## Checking bird calls
 

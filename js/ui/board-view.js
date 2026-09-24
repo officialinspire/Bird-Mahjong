@@ -26,6 +26,9 @@ const DRAG_THRESHOLD = 8;     // px of movement that turns a press into a pan
 const SMALL = (bird) => `assets/tiles-sm/${bird}.webp`;
 const FULL = (bird) => `assets/tiles-md/${bird}.webp`;
 
+const SCORE_FLOAT_MS = 900;   // CSS .score-float (850ms) + a little
+const SPARKLE_MS = 560;       // CSS .match-sparkle (520ms) + a little
+
 export function createBoardView({ viewport, surface, zoomControls, onActivate, tileFile }) {
   let layout = null;
   let tiles = [];            // button per tile index
@@ -202,6 +205,7 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
   }
 
   function render(nextLayout) {
+    clearEffects(); // nothing from the previous board may linger
     layout = nextLayout;
     extents = computeExtents(layout.positions);
     tiles = layout.positions.map((p, i) => {
@@ -225,7 +229,7 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
       setBird(el, state.birds[i]);
       const selected = state.selected === i;
       const hinted = !!hint && (hint[0] === i || hint[1] === i);
-      if (!removed) el.classList.remove("is-removing"); // e.g. undo mid-animation
+      if (!removed) settleRemoval(el); // e.g. undo mid-animation: back at once
       el.classList.toggle("is-removed", removed && !el.classList.contains("is-removing"));
       el.classList.toggle("is-free", !removed && free);
       el.classList.toggle("is-blocked", !removed && !free);
@@ -321,18 +325,73 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
   }
 
   // ---------- Gentle feedback ----------
+  //
+  // Every effect is tracked so clearEffects() can settle all of them at once:
+  // a new board, Undo, Restart, Shuffle or leaving the screen never leaves a
+  // half-faded ghost tile, a stray sparkle or a score tag behind.
+
+  const removals = new Map();   // tile element -> timer that hides it
+  const effects = new Map();    // decoration node -> timer that removes it
+
+  /** Show a purely decorative node for `ms`, then remove it. */
+  function addEffect(node, parent, ms) {
+    node.setAttribute("aria-hidden", "true");
+    parent.append(node);
+    effects.set(node, setTimeout(() => { effects.delete(node); node.remove(); }, ms));
+  }
+
+  /** Where a tile's centre is, in surface pixels. */
+  function tileCentre(el) {
+    return {
+      x: parseFloat(el.style.left) + parseFloat(el.style.width) / 2,
+      y: parseFloat(el.style.top) + parseFloat(el.style.height) / 2,
+    };
+  }
 
   /** A small "+120" that floats up from a matched tile, then disappears. */
   function floatScore(index, text) {
     const el = tiles[index];
     const tag = document.createElement("span");
     tag.className = "score-float";
-    tag.setAttribute("aria-hidden", "true");
     tag.textContent = text;
-    tag.style.left = `${parseFloat(el.style.left) + parseFloat(el.style.width) / 2}px`;
+    tag.style.left = `${tileCentre(el).x}px`;
     tag.style.top = `${parseFloat(el.style.top)}px`;
-    surface.append(tag);
-    setTimeout(() => tag.remove(), 900);
+    addEffect(tag, surface, SCORE_FLOAT_MS);
+  }
+
+  // A few specks of leaf, sun and sky drift out, and one small feather floats
+  // up — a woodland sparkle, small enough to leave neighbours readable.
+  const SPARKS = [
+    { dx: -0.62, dy: -0.5, c: "var(--leaf)" },
+    { dx: 0.6, dy: -0.58, c: "var(--rim)" },
+    { dx: -0.5, dy: 0.34, c: "var(--sky)" },
+    { dx: 0.56, dy: 0.28, c: "var(--leaf-dark)" },
+  ];
+
+  /** The sparkle-and-feather accent over one tile. */
+  function sparkle(index, turn) {
+    const el = tiles[index];
+    const { x, y } = tileCentre(el);
+    const w = parseFloat(el.style.width);
+    const burst = document.createElement("span");
+    burst.className = "match-sparkle";
+    burst.style.left = `${x}px`;
+    burst.style.top = `${y}px`;
+    burst.style.setProperty("--size", `${w}px`);
+    for (const { dx, dy, c } of SPARKS) {
+      const speck = document.createElement("i");
+      speck.className = "spark";
+      speck.style.setProperty("--dx", `${(dx * w).toFixed(1)}px`);
+      speck.style.setProperty("--dy", `${(dy * w).toFixed(1)}px`);
+      speck.style.background = c;
+      burst.append(speck);
+    }
+    const feather = document.createElement("i");
+    feather.className = "match-feather";
+    feather.style.setProperty("--turn", `${turn}deg`);
+    feather.style.setProperty("--sway", `${turn / 3}px`);
+    burst.append(feather);
+    addEffect(burst, surface, SPARKLE_MS);
   }
 
   /** Restrained board-clear moment: a soft glow and a few drifting feathers. */
@@ -352,27 +411,57 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
       feather.style.background = colours[i % colours.length];
       layer.append(feather);
     }
-    host.append(layer);
-    setTimeout(() => layer.remove(), duration);
+    addEffect(layer, host, duration);
   }
 
-  /** Play the gentle removal animation, then hide the tiles. */
-  function animateRemoval(indices, duration) {
-    for (const i of indices) {
+  /** Hide a matched tile for good. */
+  function finishRemoval(el) {
+    clearTimeout(removals.get(el));
+    removals.delete(el);
+    el.classList.remove("is-removing");
+    el.classList.add("is-removed");
+    el.hidden = true;
+  }
+
+  /** Stop a removal animation without hiding (the next sync decides). */
+  function settleRemoval(el) {
+    if (!removals.has(el)) return;
+    clearTimeout(removals.get(el));
+    removals.delete(el);
+    el.classList.remove("is-removing");
+  }
+
+  /**
+   * Lift and fade a matched pair, then hide it. `duration` 0 (reduced motion)
+   * hides it at once with no movement and no accent. A tile already on its
+   * way out is left alone, so a pair can never be removed twice.
+   */
+  function animateRemoval(indices, duration, { accent = duration > 0 } = {}) {
+    indices.forEach((i, n) => {
       const el = tiles[i];
-      el.classList.remove("is-selected", "is-hint");
-      el.classList.add("is-removing");
+      if (!el || removals.has(el) || el.hidden) return;
+      el.classList.remove("is-selected", "is-hint", "is-nudge");
       el.tabIndex = -1;
-    }
-    setTimeout(() => {
-      for (const i of indices) {
-        const el = tiles[i];
-        if (!el.classList.contains("is-removing")) continue; // restored meanwhile
-        el.classList.remove("is-removing");
-        el.classList.add("is-removed");
-        el.hidden = true;
+      if (duration <= 0) {
+        finishRemoval(el);
+        return;
       }
-    }, duration);
+      el.classList.add("is-removing");
+      // The element itself is remembered, not its index: a new board never
+      // gets hidden by an old board's timer.
+      removals.set(el, setTimeout(() => finishRemoval(el), duration));
+      if (accent) sparkle(i, n ? 24 : -24);
+    });
+  }
+
+  /**
+   * Settle every effect now: removals finish (the next sync shows the true
+   * state), and sparkles, score tags and the celebration disappear.
+   */
+  function clearEffects() {
+    for (const el of [...removals.keys()]) finishRemoval(el);
+    for (const [node, timer] of effects) { clearTimeout(timer); node.remove(); }
+    effects.clear();
   }
 
   function nudge(i) {
@@ -448,6 +537,9 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
     render,
     sync,
     animateRemoval,
+    clearEffects,
+    /** For tests: effects still showing. */
+    get effectCount() { return effects.size + removals.size; },
     nudge,
     floatScore,
     celebrate,

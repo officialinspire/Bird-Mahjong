@@ -158,6 +158,35 @@ async function afterWin(browser, url) {
   await context.close();
 }
 
+// Regression: the win used to be recorded only when the results screen
+// appeared, after the short board-clear moment, so closing or reloading the
+// page during it lost the win.
+async function reloadDuringCelebration(browser, url) {
+  console.log("reload during the board-clear moment (desktop, Easy, animations Full)");
+  const { context, page, errors } = await newPage(browser, DESKTOP, {
+    initScript: () => {
+      if (sessionStorage.getItem("seeded")) return;
+      localStorage.setItem("inspireBirdMahjong:v1:settings", JSON.stringify({ motion: "full", music: false, sfx: false }));
+      sessionStorage.setItem("seeded", "1");
+    },
+  });
+  await page.goto(`${url}?seed=${SEED}`, { waitUntil: "networkidle" });
+  await startDifficulty(page, "easy");
+  const solution = solutionFor("easy");
+  await playPairs(page, solution.slice(0, -1));
+  const [a, b] = solution.at(-1);
+  await page.locator(tile(a)).click();
+  await page.locator(tile(b)).click();
+  await page.waitForSelector(".celebration");
+  const menu = await reloadToMenu(page);
+  check(!menu.enabled, "nothing to continue after reloading mid-celebration");
+  await page.click("#screen-menu [data-go=difficulty]");
+  const best = await page.textContent('[data-difficulty=easy] .difficulty-best');
+  check(/^Best score 1,650 · 1 cleared$/.test(best), `the win is recorded even though results never showed (${best})`);
+  check(errors.length === 0, "no page errors", errors.join("; "));
+  await context.close();
+}
+
 /** Clear whatever board is on screen by taking the app's own hints. */
 async function solveByHints(page) {
   for (let i = 0; i < 40; i++) {
@@ -282,6 +311,7 @@ async function main() {
   await duringPlay(browser, url);
   await afterUndo(browser, url);
   await afterWin(browser, url);
+  await reloadDuringCelebration(browser, url);
   await stuckRestore(browser, url);
   await pauseToMenu(browser, url);
   await corruptStorage(browser, url);

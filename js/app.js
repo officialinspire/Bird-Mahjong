@@ -41,6 +41,7 @@ function showScreen(name) {
   for (const dialog of ["#pause-dialog", "#new-game-dialog"]) if ($(dialog).open) $(dialog).close();
   if (leaving === "game" && name !== "game") {
     game.pause();
+    game.settle(); // no animation or sparkle survives a screen change
     autosave(); // keep the paused clock
   }
   if (name === "menu") renderContinue();
@@ -150,6 +151,7 @@ const game = createGameController({
     },
   },
   reducedMotion,
+  onWon: recordWin,
   onWin: showResults,
   onChange: (snap) => saved.save({ difficultyId: state.difficulty, ...snap }),
 });
@@ -208,11 +210,22 @@ function continueGame() {
   game.load(save.state, save.elapsedMs);
 }
 
-function showResults(summary) {
+/**
+ * The board was just cleared: record it straight away (the results screen
+ * follows the short celebration, and the page may be closed before then).
+ */
+let recorded = null;
+function recordWin(summary) {
   saved.clear(); // a finished board isn't something to continue
+  recorded = { summary, record: bests.record(state.difficulty, summary) };
+}
+
+function showResults(summary) {
+  if (recorded?.summary !== summary) recordWin(summary);
   const d = difficultyById(state.difficulty);
   $("#results-difficulty").textContent = `${d.name} · ${d.habitat}`;
-  const { isNewBest, isNewBestTime, previous, best } = bests.record(d.id, summary);
+  const { isNewBest, isNewBestTime, previous, best } = recorded.record;
+  recorded = null;
   $("#result-score").textContent = summary.score.toLocaleString();
   $("#result-best").textContent = !previous
     ? `First ${d.name} clear — that's your best score so far.`
@@ -245,7 +258,8 @@ function musicSceneFor(screen) {
 }
 
 function openPause() {
-  if (state.screen !== "game" || anyDialogOpen()) return;
+  // Not during the board-clear moment: results follow by themselves.
+  if (state.screen !== "game" || anyDialogOpen() || game.finishing) return;
   game.pause();
   autosave();
   sound.setScene("menu");
@@ -254,7 +268,7 @@ function openPause() {
 
 /** New Game from the toolbar: ask first if there's progress to lose. */
 function requestNewGame() {
-  if (state.screen !== "game" || anyDialogOpen()) return;
+  if (state.screen !== "game" || anyDialogOpen() || game.finishing) return;
   if (!game.hasProgress()) {
     startGame(state.difficulty);
     return;
