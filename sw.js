@@ -22,7 +22,7 @@
 // Paths are relative to the worker's scope, so the same file works at a
 // domain root and under /Bird-Mahjong/ on GitHub Pages.
 
-const VERSION = "aab44907726c";
+const VERSION = "5111d3f73a0e";
 const CACHE_PREFIX = "bird-mahjong-";
 const CACHE = `${CACHE_PREFIX}${VERSION}`;
 const RUNTIME = `${CACHE_PREFIX}runtime`;

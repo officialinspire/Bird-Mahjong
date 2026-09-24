@@ -1057,3 +1057,4 @@ kbd {
    (or iOS rubber-banding) and yank the board. */
 html:has(body[data-screen="game"]),
 body[data-screen="game"] { overscroll-behavior: none; }
+.setting-note { margin: 8px 0 0; }

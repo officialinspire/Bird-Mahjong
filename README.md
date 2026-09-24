@@ -72,7 +72,7 @@ js/app.js                  screen flow, settings, keyboard handling
 js/ui/board-view.js        DOM board: tile placement, states, zoom/pan, input
 js/ui/game-controller.js   connects js/game logic to the board, timer, messages
 js/ui/bird-names.js        display names, short on-tile labels, spoken visual cues
-js/ui/sound.js             optional synthesized chirps and UI sounds (Web Audio)
+js/ui/sound.js             optional synthesized music + sound effects (Web Audio)
 js/config.js               difficulty levels
 js/settings.js             settings persisted in localStorage
 js/storage.js              one safe wrapper around localStorage (memory fallback)
@@ -157,7 +157,7 @@ The flow is the same as our Sudoku and Deja Vu games:
   personal stats.
 - **Escape** pauses in-game and goes back to the menu from any other screen.
 - **Settings** (saved in `localStorage`): Animations (Match device / Minimal /
-  Full), Sound (on/off + volume), floating background birds, short bird-name
+  Full), Music and Sound effects (each on/off + volume), floating background birds, short bird-name
   labels on tiles, and the streak bonus.
 - **Continue** resumes the autosaved board; see *Saving* below.
 - The Sudoku and Deja Vu intro video and INSPIRE logo aren't used here, because
@@ -239,18 +239,44 @@ sharing a deal or reproducing a bug.
   background, no screen fades, and results appear about 0.25 s after the last
   match. *Full* overrides the OS preference.
 
-**Sound** (Settings → Sound, plus volume) is synthesized with Web Audio in
-`js/ui/sound.js`, so there are no audio files. There are short two-note
-chirps for matches (pitched slightly differently per bird), a soft tick to
-select, a low tap for a blocked or mismatched tile, rising notes for a hint, a
-flutter for a shuffle, and a four-note chime with a chirp for a clear.
-Nothing is created until the first tap or key press, and only if Sound is on.
-With Sound off, no `AudioContext` exists at all. Turning Sound on, or moving
-the volume, plays a sample.
+**Music and Sound effects** each have their own switch and volume in
+Settings. Both are synthesized with Web Audio in `js/ui/sound.js`, so the game
+ships with no audio files.
 
-**The game is identical without either.** With Sound off and Animations on
-Minimal, every rule, score and control is unchanged; the tests play a full
-game that way.
+- **Sound effects:** short two-note chirps for matches (pitched slightly
+  differently per bird), a soft tick to select, a low tap for a blocked or
+  mismatched tile, rising notes for a hint, a flutter for a shuffle, and a
+  four-note chime with a chirp for a clear. Turning effects on, or moving
+  their volume, plays a sample.
+- **Music:** a slow, sparse woodland ambience: a soft low note each bar, a few
+  gentle pentatonic notes, and now and then a distant bird call. It's a little
+  brighter and slower on the menus than during play, and it switches as you
+  move between screens. It sits under the effects in the mix.
+- **Two channels:** effects and music run on separate audio channels under
+  one master volume, so their volumes are independent.
+- **When audio starts:** nothing is created until the first tap or key press,
+  and only if Music or Sound effects is on. With both off, no `AudioContext`
+  exists at all. A hidden tab is silenced and resumes when you return.
+- **Muting is immediate:** switching either off drops that channel to zero at
+  the current audio time, cancels any fade, and stops every sound still
+  playing on it. For music, the note scheduler is also stopped. Volume sliders
+  act live while you drag them.
+- **Older saves:** they had one *Sound* switch and volume, which carry over to
+  Sound effects. Music starts on at 40%.
+- **Adding recorded audio (optional):**
+  1. Put files in `assets/audio/`.
+  2. List them in `AUDIO_FILES` in `js/config.js`, e.g.
+     `music: { menu: "assets/audio/menu.mp3" }` or
+     `sfx: { match: "assets/audio/match.mp3" }`.
+  3. Run `npm run build:sw`, so they're precached for offline play.
+
+  Files are fetched only after the first gesture. Any that are missing or fail
+  to decode keep the synthesized sound, so the synthesized sounds are always
+  the fallback.
+
+**The game is identical without any of it.** With Music and Sound effects off
+and Animations on Minimal, every rule, score and control is unchanged; the
+tests play a full game that way.
 
 **Keyboard**
 
@@ -603,12 +629,30 @@ npm run test:save
   top. On a zoomed Hard board, the focused tile always scrolls into view.
 - **Labels:** every tile has a name, a state and a cue, and the crow and raven
   are described differently.
-- **Sound:** there is no `AudioContext` before the first gesture, matches
-  chirp, and switching Sound off silences them.
+- **Sound:**
+  - There is no `AudioContext` before the first gesture, even after waiting.
+  - With Sound effects on, matches chirp; switched off, they're silent.
+  - With Music on, the menu ambience starts after the first tap.
+  - Switching Music off cuts the notes still sounding, and no new notes play.
+    Switched back on, it plays the in-game mood.
+  - The two switches are saved separately, and an old saved "Sound off"
+    carries over to Sound effects.
+
+  `tests/sound.test.js` checks the engine against a fake Web Audio:
+  - gesture gating, the separate channels and volumes, and immediate mute
+    (volume set to 0 at the current time, fades cancelled, sounds cut, the
+    scheduler cleared)
+  - the audio context suspending when both are off, the scenes, and a hidden
+    tab
+  - recorded files with synthesized fallback
+
+  `tests/settings.test.js` covers defaults, independence, clamping, per-field
+  fallback, migration of old saves, broken storage, and that every saved
+  setting has a control.
 - **Animations:** the score floats and the celebration appear with Full (and
   with Full over an OS reduce-motion preference). They don't appear with
   Minimal or with the OS preference, where results follow right away.
-- **Quiet game:** a full touch game with Sound off and Animations Minimal has
+- **Quiet game:** a full touch game with Music and Sound effects off and Animations Minimal has
   no audio, no animation elements, and the same score.
 - **Contrast:** the rendered contrast of all text is checked on the start,
   menu, difficulty, game, pause, New Game, How to Play, Settings and results

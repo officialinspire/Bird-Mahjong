@@ -18,3 +18,17 @@ export const SMALL_TILE_DIR = "assets/tiles-sm/";
 export function difficultyById(id) {
   return DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES[0];
 }
+
+/**
+ * Optional recorded audio (relative URLs). Leave empty to use only the
+ * built-in synthesized sounds. Anything listed here that is missing or fails
+ * to decode falls back to the synthesized version, so a partial set is fine.
+ * Put files in assets/audio/ so the service worker precaches them for offline
+ * play (tools/build-sw.mjs picks them up), e.g.
+ *   sfx:   { match: "assets/audio/match.mp3" }
+ *   music: { menu: "assets/audio/menu.mp3", game: "assets/audio/game.mp3" }
+ */
+export const AUDIO_FILES = Object.freeze({
+  sfx: Object.freeze({}),
+  music: Object.freeze({}),
+});

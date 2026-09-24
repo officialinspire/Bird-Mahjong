@@ -3,7 +3,7 @@
 // and Settings off the menu. Gameplay lives in js/ui/game-controller.js on
 // top of the pure logic in js/game/.
 
-import { DIFFICULTIES, SMALL_TILE_DIR, difficultyById } from "./config.js";
+import { AUDIO_FILES, DIFFICULTIES, SMALL_TILE_DIR, difficultyById } from "./config.js";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings.js";
 import { renderBackground } from "./background.js";
 import { SCORING } from "./game/score.js";
@@ -51,6 +51,7 @@ function showScreen(name) {
     screen.classList.toggle("is-active", active);
   });
   document.body.dataset.screen = name;
+  sound.setScene(name === "game" ? "game" : "menu");
   window.scrollTo(0, 0);
   // Move focus to the new screen so keyboard and screen-reader users land
   // at its heading rather than on a now-hidden button.
@@ -111,10 +112,14 @@ function reducedMotion() {
   return motion === "reduce" || (motion === "system" && media.matches);
 }
 
-// Sound is created lazily inside the first user gesture (see bindEvents).
+// Audio is created lazily inside the first user gesture (see the bottom of
+// this file). Music and Sound effects have separate switches and volumes.
 const sound = createSound({
-  enabled: () => state.settings.sound,
-  volume: () => state.settings.soundVolume,
+  enabled: () => state.settings.sfx,
+  volume: () => state.settings.sfxVolume,
+  musicEnabled: () => state.settings.music,
+  musicVolume: () => state.settings.musicVolume,
+  files: AUDIO_FILES,
 });
 
 const game = createGameController({
@@ -270,32 +275,51 @@ function syncSettingsForm() {
   form.elements.backgroundBirds.checked = state.settings.backgroundBirds;
   form.elements.tileLabels.checked = state.settings.tileLabels;
   form.elements.streakBonus.checked = state.settings.streakBonus;
-  form.elements.sound.checked = state.settings.sound;
-  form.elements.soundVolume.value = String(Math.round(state.settings.soundVolume * 100));
-  form.elements.soundVolume.disabled = !state.settings.sound;
+  form.elements.music.checked = state.settings.music;
+  form.elements.musicVolume.value = String(Math.round(state.settings.musicVolume * 100));
+  form.elements.musicVolume.disabled = !state.settings.music;
+  form.elements.sfx.checked = state.settings.sfx;
+  form.elements.sfxVolume.value = String(Math.round(state.settings.sfxVolume * 100));
+  form.elements.sfxVolume.disabled = !state.settings.sfx;
 }
 
-function onSettingsChange(event) {
+/** Read the settings form (same shape as DEFAULT_SETTINGS). */
+function readSettingsForm() {
   const form = $("#settings-form");
-  const wasSound = state.settings.sound;
-  state.settings = {
+  return {
     motion: form.elements.motion.value,
     backgroundBirds: form.elements.backgroundBirds.checked,
     tileLabels: form.elements.tileLabels.checked,
     streakBonus: form.elements.streakBonus.checked,
-    sound: form.elements.sound.checked,
-    soundVolume: Number(form.elements.soundVolume.value) / 100,
+    music: form.elements.music.checked,
+    musicVolume: Number(form.elements.musicVolume.value) / 100,
+    sfx: form.elements.sfx.checked,
+    sfxVolume: Number(form.elements.sfxVolume.value) / 100,
   };
-  form.elements.soundVolume.disabled = !state.settings.sound;
+}
+
+/** Volume sliders act live while dragging; the value is saved on "change". */
+function onVolumeInput(event) {
+  if (!["musicVolume", "sfxVolume"].includes(event.target.name)) return;
+  state.settings = readSettingsForm();
+  sound.apply();
+}
+
+function onSettingsChange(event) {
+  const form = $("#settings-form");
+  const wasSfx = state.settings.sfx;
+  state.settings = readSettingsForm();
+  form.elements.musicVolume.disabled = !state.settings.music;
+  form.elements.sfxVolume.disabled = !state.settings.sfx;
   saveSettings(state.settings, storage);
   applySettings();
   game.refresh();
-  // Turning sound on (or moving the volume) is itself a gesture: play a sample.
-  if (state.settings.sound && (!wasSound || event?.target?.name === "soundVolume")) {
-    sound.unlock();
-    sound.play("match");
-  }
-  if (!state.settings.sound && wasSound) sound.silence();
+  // This change is itself a user gesture, so audio may start here. Muting
+  // takes effect immediately inside apply().
+  sound.unlock();
+  sound.apply();
+  // Turning effects on, or setting their volume, plays a sample chirp.
+  if (state.settings.sfx && (!wasSfx || event?.target?.name === "sfxVolume")) sound.play("match");
 }
 
 function resetSettings() {
@@ -304,6 +328,8 @@ function resetSettings() {
   syncSettingsForm();
   applySettings();
   game.refresh();
+  sound.unlock(); // a click: allowed to start audio
+  sound.apply();
 }
 
 // ---------- Events ----------
@@ -387,8 +413,12 @@ function bindEvents() {
     if (document.hidden) {
       openPause();
       autosave();
+      sound.suspend(); // no audio from a background tab
+    } else {
+      sound.resume();
     }
   });
+  $("#settings-form").addEventListener("input", onVolumeInput);
   window.addEventListener("pagehide", autosave);
   $("#btn-continue").addEventListener("click", continueGame);
   media.addEventListener("change", applySettings);
@@ -438,7 +468,8 @@ setupPwa({
 });
 
 // Audio may only start after the player does something. Every tap or key
-// press (re)unlocks it; with Sound off, unlock() does nothing at all.
+// press (re)unlocks it; with Music and Sound effects both off, unlock() does
+// nothing at all.
 for (const type of ["pointerdown", "keydown"]) {
   document.addEventListener(type, () => sound.unlock(), { capture: true, passive: true });
 }
