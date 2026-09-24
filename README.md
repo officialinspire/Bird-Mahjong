@@ -66,9 +66,11 @@ a ✓; hinted tiles have a dashed ring and a "?".
   music starts on the first tap or key press. The bird calls load then too, and
   a match made in the second or so before they're ready plays the chirp
   instead.
-- **Only five birds have real calls.** American Crow, Common Raven, Bald Eagle,
-  Northern Cardinal and Wood Duck. The other 15 birds use the synthesized
-  chirp.
+- **Two birds have no real call.** Peregrine Falcon and Wild Turkey use the
+  synthesized chirp. There's no verified, clear recording of either on
+  Commons; `assets/audio/CREDITS.md` explains why. The other 18 birds have
+  their own call. The Great Horned Owl's low hoots are quiet on small phone
+  speakers.
 - **Background tabs are silent.** Hiding the tab pauses the game and the
   music. Phone settings such as a hardware silent switch can also mute Web
   Audio; that's outside the game's control.
@@ -78,7 +80,7 @@ a ✓; hinted tiles have a dashed ring and a "?".
   - Pause and New Game wait out the 1.5 s board-clear moment. The win is
     recorded as soon as the board is cleared, even if the page is closed
     during that moment.
-- **First visit downloads ~7.1 MB.** That's for offline play, and it's mostly
+- **First visit downloads ~7.3 MB.** That's for offline play, and it's mostly
   the two music tracks.
 - **Automated tests run in Chromium.** Firefox and Safari (including iOS) are
   expected to work, since the game uses standard web APIs only, but they
@@ -355,10 +357,14 @@ Music uses the two recorded tracks in the repo root, played by
   Files are fetched only after the first gesture. Any that are missing or fail
   to play keep the synthesized sound, so the synthesized sounds are always the
   fallback.
-- **Bird calls:** `assets/audio/` holds five short real calls, named by tile
-  ID: `american-crow`, `common-raven`, `bald-eagle`, `northern-cardinal` and
-  `wood-duck` (1–2.5 s each, 8–18 KB). They come from Wikimedia Commons and
-  are public domain, except the Wood Duck, which is CC BY-SA 3.0.
+- **Bird calls:** `assets/audio/` holds 18 short real calls, one per bird,
+  named by tile ID. They are 0.7–4.4 s each, 5–30 KB and 284 KB in all.
+  - **Sources:** all come from Wikimedia Commons. 12 are public domain (NPS,
+    USGS, USFWS, G. McGrane), one is CC0 and one is CC BY 4.0 (British
+    Library). Four are CC BY-SA from xeno-canto: Wood Duck, Red-tailed Hawk,
+    Great Horned Owl and Pileated Woodpecker.
+  - **No clip:** Peregrine Falcon and Wild Turkey keep the chirp, since no
+    verified, clear recording exists.
   - **Mapping:** `AUDIO_FILES.calls` in `js/config.js` maps each exact bird ID
     to its clip.
   - **One sound per pair:** clearing a pair of one of these birds plays its
@@ -790,7 +796,7 @@ npm run test:save
 `/Bird-Mahjong/`, the same path GitHub Pages uses, and checks:
 
 - **First load:** the worker takes control, and one versioned cache holds all
-  80 precached files. There's no reload or update banner on first install.
+  93 precached files. There's no reload or update banner on first install.
 - **Install:** in a regular Chromium profile, the manifest parses without
   errors, `start_url` and `scope` resolve to `/Bird-Mahjong/`, and Chromium
   reports **no installability errors**. Chromium offers installation itself,
@@ -895,11 +901,11 @@ Start → menu works as before for them.
 ## Checking bird calls
 
 `tools/verify-calls.mjs` (`npm run test:calls`) uses real Chromium and the
-real clips. It plays a whole seeded Hard board, whose 30 pairs include all
-five birds with clips, and checks:
+real clips. It plays a whole seeded Hard board (30 pairs, 15 birds) and
+checks:
 
-- **Loading:** nothing is fetched before the first tap. After it, all five
-  clips load.
+- **Loading:** nothing is fetched before the first tap. After it, every clip
+  loads.
 - **One sound per pair:** each pair makes exactly one match sound, either its
   bird's own clip with no chirp or the chirp with no call.
 - **No chorus:** rapid matches never have more than two calls sounding, and
@@ -988,8 +994,8 @@ change.
 **Offline needs one successful online load.** That first visit registers
 `sw.js`, which precaches the whole game into one versioned cache: HTML, CSS,
 every JS module, the manifest, the icons, and all 40 cropped bird tiles (the
-120px and full-resolution WebP), the two music tracks, the five bird calls, and
-the INSPIRE logo and intro video, about 7.1 MB in all (the tracks are about 5.6
+120px and full-resolution WebP), the two music tracks, the 18 bird calls, and
+the INSPIRE logo and intro video, about 7.3 MB in all (the tracks are about 5.6
 MB). From then on the game loads and
 plays fully offline, including deep links like `?seed=123`, autosave and
 Continue.

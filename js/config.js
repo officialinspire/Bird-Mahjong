@@ -29,8 +29,8 @@ export function difficultyById(id) {
  *
  * `calls` maps exact bird IDs (js/game/birds.js) to the approved, credited
  * bird-call clips (assets/audio/CREDITS.md). Clearing a pair of one of these
- * birds plays its call instead of the synthesized match chirp; every other
- * bird keeps the chirp.
+ * birds plays its call instead of the synthesized match chirp. Peregrine Falcon
+ * and Wild Turkey have no approved clip and keep the chirp.
  *
  * tools/build-sw.mjs precaches root *.mp3 files and assets/audio/ for offline
  * play (run `npm run build:sw` after changing them).
@@ -43,6 +43,19 @@ export const AUDIO_FILES = Object.freeze({
     "bald-eagle": "assets/audio/bald-eagle.mp3",
     "northern-cardinal": "assets/audio/northern-cardinal.mp3",
     "wood-duck": "assets/audio/wood-duck.mp3",
+    "osprey": "assets/audio/osprey.mp3",
+    "red-tailed-hawk": "assets/audio/red-tailed-hawk.mp3",
+    "barred-owl": "assets/audio/barred-owl.mp3",
+    "great-horned-owl": "assets/audio/great-horned-owl.mp3",
+    "blue-jay": "assets/audio/blue-jay.mp3",
+    "american-robin": "assets/audio/american-robin.mp3",
+    "black-capped-chickadee": "assets/audio/black-capped-chickadee.mp3",
+    "tufted-titmouse": "assets/audio/tufted-titmouse.mp3",
+    "pileated-woodpecker": "assets/audio/pileated-woodpecker.mp3",
+    "belted-kingfisher": "assets/audio/belted-kingfisher.mp3",
+    "great-blue-heron": "assets/audio/great-blue-heron.mp3",
+    "canada-goose": "assets/audio/canada-goose.mp3",
+    "ruby-throated-hummingbird": "assets/audio/ruby-throated-hummingbird.mp3",
   }),
   music: Object.freeze({
     menu: "Bird Mahjong - Gentle Canopy.mp3",

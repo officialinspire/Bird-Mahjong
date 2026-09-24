@@ -22,7 +22,7 @@
 // Paths are relative to the worker's scope, so the same file works at a
 // domain root and under /Bird-Mahjong/ on GitHub Pages.
 
-const VERSION = "51ba0e292484";
+const VERSION = "6016a44aa636";
 const CACHE_PREFIX = "bird-mahjong-";
 const CACHE = `${CACHE_PREFIX}${VERSION}`;
 const RUNTIME = `${CACHE_PREFIX}runtime`;
@@ -105,9 +105,22 @@ const PRECACHE = [
   "Bird Mahjong - Forest Breeze.mp3",
   "Bird Mahjong - Gentle Canopy.mp3",
   "assets/audio/american-crow.mp3",
+  "assets/audio/american-robin.mp3",
   "assets/audio/bald-eagle.mp3",
+  "assets/audio/barred-owl.mp3",
+  "assets/audio/belted-kingfisher.mp3",
+  "assets/audio/black-capped-chickadee.mp3",
+  "assets/audio/blue-jay.mp3",
+  "assets/audio/canada-goose.mp3",
   "assets/audio/common-raven.mp3",
+  "assets/audio/great-blue-heron.mp3",
+  "assets/audio/great-horned-owl.mp3",
   "assets/audio/northern-cardinal.mp3",
+  "assets/audio/osprey.mp3",
+  "assets/audio/pileated-woodpecker.mp3",
+  "assets/audio/red-tailed-hawk.mp3",
+  "assets/audio/ruby-throated-hummingbird.mp3",
+  "assets/audio/tufted-titmouse.mp3",
   "assets/audio/wood-duck.mp3",
 ];
 // END PRECACHE

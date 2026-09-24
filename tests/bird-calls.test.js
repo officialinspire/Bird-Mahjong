@@ -93,9 +93,9 @@ function reaches(node, target) {
 describe("bird-call mapping", () => {
   const credits = fs.readFileSync(path.join(ROOT, "assets/audio/CREDITS.md"), "utf8");
 
-  test("exactly the five approved clips, keyed by exact bird IDs", () => {
+  test("every bird but Peregrine Falcon and Wild Turkey has an approved clip, keyed by its exact ID", () => {
     assert.deepEqual(Object.keys(AUDIO_FILES.calls).sort(),
-      ["american-crow", "bald-eagle", "common-raven", "northern-cardinal", "wood-duck"]);
+      BIRD_IDS.filter((b) => b !== "peregrine-falcon" && b !== "wild-turkey").sort());
     for (const id of Object.keys(AUDIO_FILES.calls)) assert.ok(BIRD_IDS.includes(id), `${id} is a real bird ID`);
   });
 
@@ -148,7 +148,7 @@ describe("a cleared pair plays one sound", () => {
       sound.play("match", { bird, pitch: 1 });
     }
     assert.equal(calls().length, 0);
-    assert.equal(oscillators().length, 2 * (BIRD_IDS.length - 5), "one two-note chirp per pair");
+    assert.equal(oscillators().length, 2 * (BIRD_IDS.length - Object.keys(AUDIO_FILES.calls).length), "one two-note chirp per pair");
   });
 
   test("the call is quiet and sits under a separate gain", async () => {
@@ -210,7 +210,7 @@ describe("music ducking", () => {
 
   test("a chirp doesn't duck the music", async () => {
     const { sound, duck } = await setup();
-    sound.play("match", { bird: "blue-jay" });
+    sound.play("match", { bird: "peregrine-falcon" }); // no clip: chirps
     assert.equal(duck.gain.events.length, 0);
   });
 });
@@ -260,7 +260,9 @@ describe("missing or broken clips fall back safely", () => {
         "assets/audio/wood-duck.mp3": "throw",
       },
     });
-    assert.deepEqual(sound.calls, ["northern-cardinal"]);
+    const broken = ["american-crow", "common-raven", "bald-eagle", "wood-duck"];
+    assert.deepEqual(sound.calls.sort(), Object.keys(AUDIO_FILES.calls).filter((b) => !broken.includes(b)).sort(),
+      "every other clip still decodes");
     for (const bird of ["american-crow", "common-raven", "bald-eagle", "wood-duck"]) {
       assert.equal(sound.play("match", { bird }), true, bird);
     }

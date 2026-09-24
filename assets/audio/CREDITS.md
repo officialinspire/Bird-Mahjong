@@ -1,9 +1,24 @@
 # Bird call credits
 
-Five short calls, one per tile, all from [Wikimedia Commons](https://commons.wikimedia.org/).
-Each was checked on its Commons file page for species, creator and licence before use.
-Four are in the public domain. The Wood Duck is CC BY-SA 3.0, which allows commercial reuse
-with attribution and share-alike. No non-commercial or unverified recordings are used.
+Eighteen short calls, one per bird, from [Wikimedia Commons](https://commons.wikimedia.org/).
+Each was checked on its Commons file page for species, creator and licence before use; for
+xeno-canto recordings the licence and recordist were also checked on xeno-canto itself.
+
+- **Public domain (12):** US government recordings (NPS, USGS, USFWS) and G. McGrane.
+- **CC0 (1):** Black-capped Chickadee.
+- **CC BY 4.0 (1):** Barred Owl, from the British Library.
+- **CC BY-SA (4):** Wood Duck, Red-tailed Hawk, Great Horned Owl and Pileated Woodpecker.
+  These licences allow commercial reuse with attribution and share-alike. Each edited clip is
+  under the same licence as its source.
+
+No non-commercial or unverified recordings are used.
+
+**Two birds have no clip and keep the synthesized chirp:**
+
+- **Peregrine Falcon:** the only candidate on Commons was a phone (WhatsApp) recording with no
+  location, whose species rests on the uploader's word alone. That's not verified.
+- **Wild Turkey:** the verified recordings (xeno-canto, CC BY-SA) are nervous calls and
+  foraging clicks. Every short window was faint calls in hiss, not a clear call.
 
 **Edits made to every clip** (by `tools/make_bird_calls.py`, which rebuilds them):
 
@@ -20,6 +35,8 @@ The clip-specific filter frequencies and gain are listed with each clip below.
 
 Where noted, the download was Commons' own MP3 transcode of the uploaded file: the same
 recording under the same licence. It was used because Wikimedia rate-limited the original.
+The xeno-canto recordings were downloaded from xeno-canto (`https://xeno-canto.org/<id>/download`),
+the same file Commons mirrors.
 
 ---
 
@@ -78,3 +95,141 @@ recording under the same licence. It was used because Wikimedia rate-limited the
   low-pass 9 kHz, gain −10.0 dB, peak −13.9 dBFS. 8 KB.
 - **This edited clip** is also licensed under
   [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), as the licence requires.
+
+## osprey.mp3: Osprey (*Pandion haliaetus*)
+
+- **Source:** [File:Pandion haliaetus.ogg](https://commons.wikimedia.org/wiki/File:Pandion_haliaetus.ogg)
+  ("Call of the Osprey (Pandion haliaetus)"). Downloaded as Commons' MP3 transcode.
+- **Creator:** National Park Service (Wind Cave National Park bird list,
+  `nps.gov/archive/wica/Bird_List.htm`); the individual recordist isn't named.
+- **License:** Public domain, a work of the US National Park Service
+  ([PD-USGov-NPS](https://commons.wikimedia.org/wiki/Template:PD-USGov-NPS))
+- **Edits:** trimmed to 0.00–0.72 s (three clean whistles; the source clips after that),
+  high-pass 900 Hz, low-pass 9 kHz, gain −7.8 dB, peak −12.4 dBFS. 5 KB.
+
+## red-tailed-hawk.mp3: Red-tailed Hawk (*Buteo jamaicensis*)
+
+- **Source:** [File:Buteo jamaicensis - Red-tailed Hawk XC71575.mp3](https://commons.wikimedia.org/wiki/File:Buteo_jamaicensis_-_Red-tailed_Hawk_XC71575.mp3)
+  = xeno-canto [XC71575](https://xeno-canto.org/71575) ("Red-tailed Hawk call recorded at Dordt
+  College Prairie, Sioux, Iowa", 2011-02-12)
+- **Creator:** Jonathon Jongsma
+- **License:** [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) (same on Commons and xeno-canto)
+- **Edits:** trimmed to 0.30–1.95 s (one scream), high-pass 600 Hz, low-pass 10 kHz, gain −10.1 dB,
+  peak −11.6 dBFS. 11 KB. **This edited clip** is also licensed under CC BY-SA 3.0.
+
+## barred-owl.mp3: Barred Owl (*Strix varia*)
+
+- **Source:** [File:Barred Owl (Strix varia) (W1CDR0000351 BD27).ogg](https://commons.wikimedia.org/wiki/File:Barred_Owl_(Strix_varia)_(W1CDR0000351_BD27).ogg)
+  ("Barred Owl song, recorded in Florida, USA"). Downloaded as Commons' MP3 transcode.
+- **Creator:** The British Library, Wildlife Sounds collection (W1CDR0000351 BD27; uploaded by the
+  British Library, VRTS permission confirmed); the individual recordist isn't named.
+- **License:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+- **Edits:** trimmed to 0.70–4.80 s (one "who-cooks-for-you" phrase), high-pass 200 Hz,
+  low-pass 6 kHz, gain +0.1 dB, peak −10.5 dBFS. 28 KB.
+
+## great-horned-owl.mp3: Great Horned Owl (*Bubo virginianus*)
+
+- **Source:** [File:Bubo virginianus - Great Horned Owl XC450919.mp3](https://commons.wikimedia.org/wiki/File:Bubo_virginianus_-_Great_Horned_Owl_XC450919.mp3)
+  = xeno-canto [XC450919](https://xeno-canto.org/450919) ("Great Horned Owl call from Anderson
+  Township near Cincinnati, Hamilton County, Ohio", 2019-01-11; the recordist applied noise
+  reduction and +3 dB)
+- **Creator:** Michael & Katie LaTour
+- **License:** [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) (same on Commons and xeno-canto)
+- **Edits:** trimmed to 0.00–4.40 s (one hoot phrase), high-pass 120 Hz, low-pass 3 kHz,
+  gain +15.7 dB, peak −12.7 dBFS. 30 KB. **This edited clip** is also licensed under CC BY-SA 4.0.
+
+## blue-jay.mp3: Blue Jay (*Cyanocitta cristata*)
+
+- **Source:** [File:Blue Jay.ogg](https://commons.wikimedia.org/wiki/File:Blue_Jay.ogg)
+  ("Blue Jays in Florida and North Carolina", 2000). Downloaded as Commons' MP3 transcode.
+- **Creator:** G. McGrane (own work)
+- **License:** Public domain, released by the author
+  ([PD-self](https://commons.wikimedia.org/wiki/Template:PD-self))
+- **Edits:** trimmed to 20.10–21.75 s (two "jay" calls), high-pass 700 Hz, low-pass 10 kHz,
+  gain −4.0 dB, peak −12.6 dBFS. 11 KB.
+
+## american-robin.mp3: American Robin (*Turdus migratorius*)
+
+- **Source:** [File:American Robin Yellowstone National Park.ogg](https://commons.wikimedia.org/wiki/File:American_Robin_Yellowstone_National_Park.ogg)
+  ("A recording of an American Robin at Yellowstone National Park", 2005-04-19). Downloaded as
+  Commons' MP3 transcode.
+- **Creator:** National Park Service (Natural Sounds gallery)
+- **License:** Public domain, a work of the US National Park Service
+  ([PD-USGov-NPS](https://commons.wikimedia.org/wiki/Template:PD-USGov-NPS))
+- **Edits:** trimmed to 0.20–2.20 s (a run of calls), high-pass 1.2 kHz, low-pass 10 kHz,
+  gain −5.5 dB, peak −7.4 dBFS. 14 KB.
+
+## black-capped-chickadee.mp3: Black-capped Chickadee (*Poecile atricapillus*)
+
+- **Source:** [File:Black-capped Chickadee 201947598.wav](https://commons.wikimedia.org/wiki/File:Black-capped_Chickadee_201947598.wav)
+  ("Call of a black-capped chickadee found in Calgary's Griffith Woods Park"). Downloaded as
+  Commons' MP3 transcode.
+- **Creator:** *ngoomie (own work)
+- **License:** [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)
+- **Edits:** trimmed to 0.05–1.30 s (one "chick-a-dee-dee"), high-pass 1.5 kHz, low-pass 12 kHz,
+  gain +3.0 dB, peak −5.1 dBFS. 9 KB.
+
+## tufted-titmouse.mp3: Tufted Titmouse (*Baeolophus bicolor*)
+
+- **Source:** [File:Tufted Titmouse call.ogg](https://commons.wikimedia.org/wiki/File:Tufted_Titmouse_call.ogg)
+  ("A sound recording of a tufted titmouse bird call."). Downloaded as Commons' MP3 transcode.
+- **Creator:** U.S. Fish and Wildlife Service
+- **License:** Public domain, a work of the US Fish and Wildlife Service
+  ([PD-USGov-FWS](https://commons.wikimedia.org/wiki/Template:PD-USGov-FWS))
+- **Edits:** trimmed to 0.90–3.30 s (two call bursts), high-pass 3 kHz (removes hum), low-pass
+  12 kHz, gain −0.3 dB, peak −6.4 dBFS. 17 KB.
+
+## pileated-woodpecker.mp3: Pileated Woodpecker (*Dryocopus pileatus*)
+
+- **Source:** [File:Dryocopus pileatus - Pileated Woodpecker XC61518.mp3](https://commons.wikimedia.org/wiki/File:Dryocopus_pileatus_-_Pileated_Woodpecker_XC61518.mp3)
+  = xeno-canto [XC61518](https://xeno-canto.org/61518) (call, Tettegouche State Park, Lake,
+  Minnesota, 2010-08-31)
+- **Creator:** Jonathon Jongsma
+- **License:** [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) (same on Commons and xeno-canto)
+- **Edits:** trimmed to 1.75–3.40 s (one call series), high-pass 500 Hz, low-pass 10 kHz,
+  gain −9.4 dB, peak −10.9 dBFS. 11 KB. **This edited clip** is also licensed under CC BY-SA 3.0.
+
+## belted-kingfisher.mp3: Belted Kingfisher (*Megaceryle alcyon*)
+
+- **Source:** [File:Megaceryle alcyon.ogg](https://commons.wikimedia.org/wiki/File:Megaceryle_alcyon.ogg)
+  ("Call of the Belted Kingfisher (Megaceryle alcyon)"). Downloaded as Commons' MP3 transcode.
+- **Creator:** National Park Service (Wind Cave National Park bird list); the individual recordist
+  isn't named.
+- **License:** Public domain, a work of the US National Park Service
+  ([PD-USGov-NPS](https://commons.wikimedia.org/wiki/Template:PD-USGov-NPS))
+- **Edits:** trimmed to 0.35–2.30 s (a rattle), high-pass 1 kHz, low-pass 10 kHz, gain +12.9 dB,
+  peak −6.4 dBFS. 14 KB.
+
+## great-blue-heron.mp3: Great Blue Heron (*Ardea herodias*)
+
+- **Source:** [File:Great Blue Heron.ogg](https://commons.wikimedia.org/wiki/File:Great_Blue_Heron.ogg)
+  ("Call of the Great Blue Heron (Ardea herodias)"). Downloaded as Commons' MP3 transcode.
+- **Creator:** National Park Service (Wind Cave National Park bird list); the individual recordist
+  isn't named.
+- **License:** Public domain, a work of the US National Park Service
+  ([PD-USGov-NPS](https://commons.wikimedia.org/wiki/Template:PD-USGov-NPS))
+- **Edits:** trimmed to 0.10–1.20 s (two croaks), high-pass 500 Hz, low-pass 8 kHz, gain −5.3 dB,
+  peak −7.3 dBFS. 8 KB.
+
+## canada-goose.mp3: Canada Goose (*Branta canadensis*)
+
+- **Source:** [File:Branta canadensis.ogg](https://commons.wikimedia.org/wiki/File:Branta_canadensis.ogg)
+  ("Call of the Canada Goose (Branta canadensis)")
+- **Creator:** National Park Service (Wind Cave National Park bird list); the individual recordist
+  isn't named.
+- **License:** Public domain, a work of the US National Park Service
+  ([PD-USGov-NPS](https://commons.wikimedia.org/wiki/Template:PD-USGov-NPS))
+- **Edits:** trimmed to 0.15–1.70 s (two honks), high-pass 250 Hz, low-pass 5 kHz (the source is
+  11 kHz), gain −7.1 dB, peak −7.7 dBFS. 11 KB.
+
+## ruby-throated-hummingbird.mp3: Ruby-throated Hummingbird (*Archilochus colubris*)
+
+- **Source:** [File:Archilochus colubris.ogg](https://commons.wikimedia.org/wiki/File:Archilochus_colubris.ogg)
+  ("Call of the Ruby-throated Hummingbird (Archilochus colubris)"). Downloaded as Commons' MP3
+  transcode.
+- **Creator:** National Park Service (Wind Cave National Park bird list); the individual recordist
+  isn't named.
+- **License:** Public domain, a work of the US National Park Service
+  ([PD-USGov-NPS](https://commons.wikimedia.org/wiki/Template:PD-USGov-NPS))
+- **Edits:** trimmed to 0.00–1.05 s (a chip-twitter series), high-pass 2 kHz, low-pass 12 kHz,
+  gain +4.7 dB, peak −7.7 dBFS. 7 KB.
