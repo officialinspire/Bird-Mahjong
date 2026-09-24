@@ -13,7 +13,7 @@ export const BASE = "/Bird-Mahjong/";
 const TYPES = {
   ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript",
   ".json": "application/json", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
-  ".webmanifest": "application/manifest+json",
+  ".webmanifest": "application/manifest+json", ".mp3": "audio/mpeg",
 };
 
 /**
@@ -53,4 +53,13 @@ export function serve() {
 /** Chromium, from CHROMIUM_PATH if set, otherwise Playwright's download. */
 export function launchBrowser() {
   return chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+}
+
+/**
+ * A failed request that is normal browser behaviour, not a bug: <audio>
+ * cancels its own in-flight byte-range request (net::ERR_ABORTED) whenever
+ * it seeks, pauses or re-buffers. Nothing reaches the console for these.
+ */
+export function isBenignFailure(request) {
+  return request.resourceType() === "media" && /ERR_ABORTED/.test(request.failure()?.errorText ?? "");
 }

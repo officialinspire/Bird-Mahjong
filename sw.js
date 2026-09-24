@@ -22,7 +22,7 @@
 // Paths are relative to the worker's scope, so the same file works at a
 // domain root and under /Bird-Mahjong/ on GitHub Pages.
 
-const VERSION = "aab44907726c";
+const VERSION = "909f26c0c699";
 const CACHE_PREFIX = "bird-mahjong-";
 const CACHE = `${CACHE_PREFIX}${VERSION}`;
 const RUNTIME = `${CACHE_PREFIX}runtime`;
@@ -52,6 +52,7 @@ const PRECACHE = [
   "js/ui/bird-names.js",
   "js/ui/board-view.js",
   "js/ui/game-controller.js",
+  "js/ui/music.js",
   "js/ui/sound.js",
   "icons/apple-touch-icon.png",
   "icons/favicon-32.png",
@@ -98,6 +99,13 @@ const PRECACHE = [
   "assets/tiles-md/18-wild-turkey.webp",
   "assets/tiles-md/19-canada-goose.webp",
   "assets/tiles-md/20-ruby-throated-hummingbird.webp",
+  "Bird Mahjong - Forest Breeze.mp3",
+  "Bird Mahjong - Gentle Canopy.mp3",
+  "assets/audio/american-crow.mp3",
+  "assets/audio/bald-eagle.mp3",
+  "assets/audio/common-raven.mp3",
+  "assets/audio/northern-cardinal.mp3",
+  "assets/audio/wood-duck.mp3",
 ];
 // END PRECACHE
 
@@ -150,6 +158,8 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     (async () => {
       const cached = await caches.match(request, { cacheName: CACHE, ignoreSearch: true });
+      // <audio> asks for byte ranges; answer them from the cached file.
+      if (cached && request.headers.has("range")) return rangeResponse(request, cached);
       if (cached) return cached;
       // Not part of the game (e.g. tiles.html, full-size PNGs): network first,
       // keeping a copy so it also works offline after one visit.
@@ -165,6 +175,36 @@ self.addEventListener("fetch", (event) => {
     })()
   );
 });
+
+/** A 206 slice of a cached response, for media range requests. */
+async function rangeResponse(request, response) {
+  const data = await response.arrayBuffer();
+  const size = data.byteLength;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("range").trim());
+  let start = 0;
+  let end = size - 1;
+  if (match) {
+    if (match[1] === "" && match[2] !== "") {
+      start = Math.max(0, size - Number(match[2])); // suffix: last N bytes
+    } else {
+      start = Number(match[1] || 0);
+      if (match[2] !== "") end = Math.min(Number(match[2]), size - 1);
+    }
+  }
+  if (!match || start >= size || start > end) {
+    return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+  }
+  return new Response(data.slice(start, end + 1), {
+    status: 206,
+    statusText: "Partial Content",
+    headers: {
+      "Content-Type": response.headers.get("Content-Type") || "application/octet-stream",
+      "Content-Range": `bytes ${start}-${end}/${size}`,
+      "Content-Length": String(end - start + 1),
+      "Accept-Ranges": "bytes",
+    },
+  });
+}
 
 function isAppShell(url) {
   const path = url.href.slice(self.registration.scope.length).split(/[?#]/)[0];

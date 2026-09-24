@@ -39,6 +39,12 @@ export function precacheList() {
     ...list("icons", ".png"),
     ...list("assets/tiles-sm", ".webp"),
     ...list("assets/tiles-md", ".webp"),
+    // Music (root MP3s, streamed by js/ui/music.js).
+    ...fs.readdirSync(ROOT).filter((f) => f.endsWith(".mp3")).sort(),
+    // Optional recorded audio (see AUDIO_FILES in js/config.js).
+    ...(fs.existsSync(path.join(ROOT, "assets/audio"))
+      ? fs.readdirSync(path.join(ROOT, "assets/audio")).filter((f) => /\.(mp3|m4a|ogg|opus|wav)$/.test(f)).sort().map((f) => `assets/audio/${f}`)
+      : []),
   ];
 }
 

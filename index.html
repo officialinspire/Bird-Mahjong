@@ -221,7 +221,7 @@
         <p>Screen readers hear each tile's bird, whether it's free, selected, blocked or covered, and a short description such as “slim bill, pine boughs”.</p>
 
         <h2>Sound and animation</h2>
-        <p>Both are optional and set separately in Settings. With sound off and animations on Minimal, the game plays exactly the same.</p>
+        <p>Music, sound effects and animations are each optional and set separately in Settings. With all of them off, the game plays exactly the same.</p>
       </div>
     </section>
 
@@ -245,16 +245,28 @@
               <label><input type="radio" name="motion" value="full"><span>Full</span></label>
             </div>
           </fieldset>
+          <p class="setting-hint setting-note">Nothing plays until you tap or press a key. Switching either off silences it at once.</p>
           <label class="setting setting--toggle">
             <span>
-              <strong>Sound</strong>
-              <span class="setting-hint">Soft chirps and taps. Nothing plays until you tap or press a key.</span>
+              <strong>Music</strong>
+              <span class="setting-hint">A calm woodland ambience, a little brighter on the menus.</span>
             </span>
-            <input type="checkbox" name="sound" role="switch">
+            <input type="checkbox" name="music" role="switch">
           </label>
           <label class="setting setting--range">
-            <span><strong>Sound volume</strong></span>
-            <input type="range" name="soundVolume" min="0" max="100" step="5">
+            <span><strong>Music volume</strong></span>
+            <input type="range" name="musicVolume" min="0" max="100" step="5">
+          </label>
+          <label class="setting setting--toggle">
+            <span>
+              <strong>Sound effects</strong>
+              <span class="setting-hint">Soft chirps for matches and quiet taps for buttons.</span>
+            </span>
+            <input type="checkbox" name="sfx" role="switch">
+          </label>
+          <label class="setting setting--range">
+            <span><strong>Effects volume</strong></span>
+            <input type="range" name="sfxVolume" min="0" max="100" step="5">
           </label>
           <label class="setting setting--toggle">
             <span>

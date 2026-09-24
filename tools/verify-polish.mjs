@@ -5,8 +5,10 @@
 //     arrow keys reach every tile needed to win, Enter selects, focus stays
 //     visible and on top, H hints and U undoes
 //   * descriptive labels: every tile says its bird, its state and a visual cue
-//   * sound: no AudioContext before the first gesture; chirps on matches when
-//     Sound is on; silent (no AudioContext at all) with Sound off
+//   * sound: no AudioContext before the first gesture; chirps on matches with
+//     Sound effects on; menu/game music (the recorded tracks) after the first
+//     tap with Music on; switching either off stops it at once; an old "Sound off"
+//     setting carries over; silent (no AudioContext at all) with both off
 //   * animation: score floats and the board-clear celebration with animations
 //     on; none of it with Minimal or the OS reduce-motion preference
 //   * a full touch game with sound off and animations Minimal
@@ -32,7 +34,7 @@ const DESKTOP = { viewport: { width: 1280, height: 720 } };
 
 /** Counts AudioContexts and oscillator starts, and whether audio began before a gesture. */
 function instrumentAudio() {
-  const audio = { contexts: 0, tones: 0, beforeGesture: false, gestured: false };
+  const audio = { contexts: 0, tones: 0, cut: 0, beforeGesture: false, gestured: false };
   window.__audio = audio;
   for (const type of ["pointerdown", "keydown"]) addEventListener(type, () => { audio.gestured = true; }, true);
   const Real = window.AudioContext;
@@ -46,6 +48,13 @@ function instrumentAudio() {
     };
     const start = OscillatorNode.prototype.start;
     OscillatorNode.prototype.start = function (...args) { audio.tones++; return start.apply(this, args); };
+    // Recorded music plays through <audio> elements: remember every one played.
+    window.__media = new Set();
+    const mediaPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (...args) { window.__media.add(this); return mediaPlay.apply(this, args); };
+    // stop(0) = cut off immediately (what muting does to sounds still playing).
+    const stop = OscillatorNode.prototype.stop;
+    OscillatorNode.prototype.stop = function (...args) { if (args[0] === 0) audio.cut++; return stop.apply(this, args); };
   }
 }
 
@@ -233,9 +242,9 @@ async function labels(browser) {
 }
 
 async function audio(browser) {
-  console.log("sound");
+  console.log("sound: effects (music off)");
   {
-    const { context, page, errors } = await open(browser, DESKTOP);
+    const { context, page, errors } = await open(browser, DESKTOP, { settings: { music: false } });
     await page.waitForTimeout(300);
     const idle = await page.evaluate(() => window.__audio);
     check(idle.contexts === 0, "no audio before any interaction");
@@ -249,19 +258,67 @@ async function audio(browser) {
     check(afterMatchAudio.contexts === 1 && !afterMatchAudio.beforeGesture, "audio starts only after the first gesture, once");
     check(afterMatchAudio.tones > beforeMatch, `a match plays a chirp (${afterMatchAudio.tones - beforeMatch} tones)`);
 
-    // Switch Sound off in Settings, come back, match again: silence.
+    // Switch Sound effects off in Settings, come back, match again: silence.
     await page.click("#btn-pause");
     await page.click("#btn-pause-menu");
     await page.click("#screen-menu [data-go=settings]");
-    await page.click("#screen-settings input[name=sound]");
+    await page.click("#screen-settings input[name=sfx]");
     await page.click("#screen-settings [data-go=menu]");
     await page.click("#btn-continue");
     const quiet = await page.evaluate(() => window.__audio.tones);
     await page.click(tile(c));
     await page.click(tile(d));
     await afterMatch(page, c, d);
-    check((await page.evaluate(() => window.__audio.tones)) === quiet, "with Sound switched off, matches are silent");
+    check((await page.evaluate(() => window.__audio.tones)) === quiet, "with Sound effects off, matches are silent");
     check(errors.length === 0, "no page errors", errors.join("; "));
+    await context.close();
+  }
+
+  console.log("sound: music (effects off)");
+  {
+    const music = (page) => page.evaluate(() => [...window.__media].map((e) => ({
+      track: decodeURIComponent(e.src.split("/").pop()), playing: !e.paused, t: e.currentTime,
+    })));
+    const playingNow = async (page) => (await music(page)).filter((m) => m.playing).map((m) => m.track);
+    const { context, page, errors } = await open(browser, DESKTOP, { settings: { sfx: false } });
+    await page.waitForTimeout(1500);
+    check((await page.evaluate(() => window.__audio.contexts + window.__media.size)) === 0, "no music before any interaction, even after waiting");
+    await page.click("#screen-start");
+    await page.waitForTimeout(1500);
+    check((await playingNow(page)).join() === "Bird Mahjong - Gentle Canopy.mp3" && !(await page.evaluate(() => window.__audio.beforeGesture)),
+      "after the first tap, the menu music (Gentle Canopy) plays");
+
+    // Music off in Settings: stops at once, and nothing new plays.
+    await page.click("#screen-menu [data-go=settings]");
+    await page.click("#screen-settings input[name=music]");
+    check((await playingNow(page)).length === 0, "switching Music off stops it at once");
+    await page.waitForTimeout(1500);
+    check((await playingNow(page)).length === 0, "…and nothing starts again");
+
+    // Back on, then into a game: the gameplay track.
+    await page.click("#screen-settings input[name=music]");
+    await page.click("#screen-settings [data-go=menu]");
+    await page.click("#screen-menu [data-go=difficulty]");
+    await page.click("[data-difficulty=easy]");
+    await page.waitForTimeout(1800);
+    check((await playingNow(page)).join() === "Bird Mahjong - Forest Breeze.mp3", "Music switched back on plays again, now Forest Breeze in play");
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("inspireBirdMahjong:v1:settings")));
+    check(saved.music === true && saved.sfx === false && typeof saved.musicVolume === "number" && !("sound" in saved),
+      "the two switches are saved separately", JSON.stringify(saved));
+    check(errors.length === 0, "no page errors", errors.join("; "));
+    await context.close();
+  }
+
+  console.log("sound: an old saved 'Sound off' carries over");
+  {
+    const { context, page } = await open(browser, DESKTOP, { settings: { sound: false, soundVolume: 0.3 } });
+    await page.click("#screen-start");
+    await page.click("#screen-menu [data-go=settings]");
+    const form = await page.evaluate(() => {
+      const f = document.getElementById("settings-form").elements;
+      return { sfx: f.sfx.checked, sfxVolume: f.sfxVolume.value, sfxDisabled: f.sfxVolume.disabled, music: f.music.checked };
+    });
+    check(!form.sfx && form.sfxVolume === "30" && form.sfxDisabled && form.music, "Sound effects start off at 30%, Music on", JSON.stringify(form));
     await context.close();
   }
 }
@@ -297,8 +354,8 @@ async function animations(browser) {
 }
 
 async function quietGame(browser) {
-  console.log("sound off + animations Minimal: full touch game");
-  const { context, page, errors } = await open(browser, PHONE, { settings: { sound: false, motion: "reduce" } });
+  console.log("music and effects off + animations Minimal: full touch game");
+  const { context, page, errors } = await open(browser, PHONE, { settings: { sfx: false, music: false, motion: "reduce" } });
   await startDifficulty(page, "medium");
   await playPairs(page, solutionFor("medium"), { input: "touch" });
   await page.waitForSelector("#screen-results:not([hidden])");
