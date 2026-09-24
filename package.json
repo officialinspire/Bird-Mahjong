@@ -9,7 +9,9 @@
     "test:crops": "python3 tools/verify_crops.py",
     "test:layout": "node tools/verify-layout.mjs",
     "test:play": "node tools/verify-play.mjs",
-    "test": "npm run test:logic && npm run test:crops && npm run test:layout && npm run test:play"
+    "test": "npm run test:logic && npm run test:crops && npm run test:layout && npm run test:play && npm run test:save && npm run test:polish",
+    "test:save": "node tools/verify-save.mjs",
+    "test:polish": "node tools/verify-polish.mjs"
   },
   "devDependencies": {
     "playwright": "^1.55.0"

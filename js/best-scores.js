@@ -1,6 +1,6 @@
-// Personal bests, kept separately for each difficulty in localStorage.
-// Storage is injectable for tests; if it's unavailable (private mode,
-// blocked site data) bests simply live for this session.
+// Personal bests and boards completed, kept separately for each difficulty in
+// localStorage. Storage is injectable for tests; if it's unavailable (private
+// mode, blocked site data) bests simply live for this session.
 //
 // Stored shape: { [difficultyId]: { score, bestTime, games } }
 //   score     highest score on that difficulty
@@ -8,43 +8,28 @@
 //             affects the score
 //   games     boards cleared on that difficulty
 
+import { openStorage, readJson } from "./storage.js";
+
 export const BEST_KEY = "inspireBirdMahjong:v1:bests";
 
-function safeStorage(storage) {
-  try {
-    const probe = `${BEST_KEY}:probe`;
-    storage.setItem(probe, "1");
-    storage.removeItem(probe);
-    return storage;
-  } catch {
-    const memory = new Map();
-    return { getItem: (k) => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, String(v)), removeItem: (k) => memory.delete(k) };
-  }
-}
-
-export function createBestScores(storage = globalThis.localStorage) {
-  const store = safeStorage(storage);
+/** `storage` may be a raw Storage (it is wrapped) or one from openStorage(). */
+export function createBestScores(storage) {
+  const store = openStorage(storage).storage;
 
   function readAll() {
-    try {
-      const data = JSON.parse(store.getItem(BEST_KEY) || "{}");
-      return data && typeof data === "object" && !Array.isArray(data) ? data : {};
-    } catch {
-      return {};
-    }
+    const data = readJson(store, BEST_KEY);
+    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
   }
 
   function writeAll(data) {
-    try {
-      store.setItem(BEST_KEY, JSON.stringify(data));
-    } catch {
-      // Quota or access error: keep playing; the best just isn't saved.
-    }
+    // A failed write (quota, blocked) just means the best isn't kept.
+    store.setItem(BEST_KEY, JSON.stringify(data));
   }
 
   function get(difficultyId) {
     const entry = readAll()[difficultyId];
     if (!entry) return null;
+    if (!entry || typeof entry !== "object") return null;
     return {
       score: Number.isFinite(entry.score) ? entry.score : 0,
       bestTime: Number.isFinite(entry.bestTime) ? entry.bestTime : null,

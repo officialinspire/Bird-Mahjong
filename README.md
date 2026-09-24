@@ -18,9 +18,14 @@ css/app.css                palette, layout, floating-tile background
 js/app.js                  screen flow, settings, keyboard handling
 js/ui/board-view.js        DOM board: tile placement, states, zoom/pan, input
 js/ui/game-controller.js   connects js/game logic to the board, timer, messages
-js/ui/bird-names.js        display names and short on-tile labels
+js/ui/bird-names.js        display names, short on-tile labels, spoken visual cues
+js/ui/sound.js             optional synthesized chirps and UI sounds (Web Audio)
 js/config.js               difficulty levels
 js/settings.js             settings persisted in localStorage
+js/storage.js              one safe wrapper around localStorage (memory fallback)
+js/saved-game.js           the autosaved board (Continue)
+js/best-scores.js          best score, fastest time and clears per difficulty
+js/game/save-format.js     game state <-> JSON, with strict validation
 js/background.js           slowly drifting bird tiles behind the UI
 tiles.html                 tile reference gallery (css/gallery.css, js/gallery.js)
 data/tiles.json            tile ID ↔ name mapping (hand-maintained)
@@ -36,6 +41,8 @@ js/game/                   pure game logic (no DOM): geometry, rules, generator,
 tests/                     unit tests for the game logic (node --test)
 tools/verify-layout.mjs    responsive layout checks (Playwright)
 tools/verify-play.mjs      touch and mouse play checks (Playwright)
+tools/verify-save.mjs      autosave / Continue checks with real reloads (Playwright)
+tools/verify-polish.mjs    keyboard, labels, sound, animation, contrast checks (Playwright)
 package.json               dev-only scripts; the site itself needs no npm
 ```
 
@@ -89,10 +96,10 @@ The flow is the same as our Sudoku and Deja Vu games:
   it's a new best), pairs, best streak, and your time and fastest time as
   personal stats.
 - **Escape** pauses in-game and goes back to the menu from any other screen.
-- **Settings** (saved in `localStorage`): Motion (Match device / Reduced /
-  Full), floating background birds on/off, short bird-name labels on tiles,
-  and the streak bonus on/off.
-- **Continue** stays disabled until there is a saved game to resume.
+- **Settings** (saved in `localStorage`): Animations (Match device / Minimal /
+  Full), Sound (on/off + volume), floating background birds, short bird-name
+  labels on tiles, and the streak bonus.
+- **Continue** resumes the autosaved board; see *Saving* below.
 - The Sudoku and Deja Vu intro video and INSPIRE logo aren't used here, because
   this repo doesn't include them. Add the files to reuse the intro step.
 
@@ -158,6 +165,61 @@ and images stay exact. Zoomed tiles load the full-resolution WebP through
 `?seed=123` in the URL replays a specific first board, which is handy for
 sharing a deal or reproducing a bug.
 
+## Calm polish: sound, animation and access
+
+**Animations** (Settings → Animations: Match device / Minimal / Full):
+
+- On a match, the two tiles lift and fade (~0.3 s), and a small "+points" tag
+  floats up from them.
+- Clearing a board brings a restrained ~1.5 s moment: a soft glow and a dozen
+  feathers in the palette colours drift up, a gentle chime plays, and then the
+  results appear.
+- *Match device* follows `prefers-reduced-motion`. *Minimal* (or the OS
+  preference) removes all movement: no floats, no feathers, no drifting
+  background, no screen fades, and results appear about 0.25 s after the last
+  match. *Full* overrides the OS preference.
+
+**Sound** (Settings → Sound, plus volume) is synthesized with Web Audio in
+`js/ui/sound.js`, so there are no audio files. There are short two-note
+chirps for matches (pitched slightly differently per bird), a soft tick to
+select, a low tap for a blocked or mismatched tile, rising notes for a hint, a
+flutter for a shuffle, and a four-note chime with a chirp for a clear.
+Nothing is created until the first tap or key press, and only if Sound is on.
+With Sound off, no `AudioContext` exists at all. Turning Sound on, or moving
+the volume, plays a sample.
+
+**The game is identical without either.** With Sound off and Animations on
+Minimal, every rule, score and control is unchanged; the tests play a full
+game that way.
+
+**Keyboard**
+
+- The board is a single Tab stop (roving tabindex). The arrow keys move
+  between free tiles by what's on screen, and Home and End jump to the first
+  and last free tile.
+- Enter or Space selects; H is Hint; U or Ctrl/⌘+Z is Undo; Esc is Pause.
+- After a match, focus moves to the nearest free tile. On a zoomed board the
+  focused tile scrolls into view.
+- The focused tile gets a thick cardinal ring, and is always drawn above its
+  neighbours.
+
+**Labels.** Each tile's accessible name gives its bird and state ("Common
+Raven, free", or "…, covered" / "blocked" / "selected" / "hint"). Its
+`aria-description` adds a short visual cue ("heavy hooked bill and shaggy
+throat, spruce trees") and the layer, so look-alike birds can be told apart
+without sight.
+
+**Touch targets and contrast**
+
+- Buttons, switches and the volume slider are at least 44px tall.
+- Tiles are at least 40px wide and about 51px tall, and a board zooms rather
+  than shrinking below that.
+- `tests/contrast.test.js` reads the palette from `css/app.css` and requires
+  AA (4.5:1) for every text pairing. That includes text over the sky-tinted
+  top of the page, which is why eyebrow labels use the darker leaf green.
+- The browser check measures the rendered contrast of every piece of text on
+  every screen.
+
 ## Help and recovery
 
 None of these punish the player.
@@ -186,6 +248,56 @@ matching pair is left. If none is, a friendly panel slides up over the board
 
 `recoveryFor(state)` decides which offer to show: `"none"`, `"shuffle"` or
 `"restart"`.
+
+## Saving
+
+Everything is stored locally in the browser. There are no accounts and no
+server.
+
+| Key (`localStorage`) | What |
+|----------------------|------|
+| `inspireBirdMahjong:v1:save` | The board in progress: difficulty, every tile's bird, removed tiles, selected tile, score, streak, undo history (with each pair's points), hint/shuffle/restart counts, the verified route, the original deal, and elapsed time |
+| `inspireBirdMahjong:v1:bests` | Per difficulty: best score, fastest time, and boards cleared |
+| `inspireBirdMahjong:v1:settings` | Motion, background birds, tile labels, streak bonus |
+
+- **Autosave** happens after every change on the board (match, mismatch,
+  selection, undo, hint, shuffle, restart), on pause, when leaving the game
+  screen, and when the page is hidden or closed (`pagehide`). The saved time
+  includes the play time so far.
+- **Continue** on the menu is enabled only for a valid save, and shows what it
+  resumes, e.g. "Hard · 26 pairs left · 460 pts". It restores the exact
+  playable state: the same tiles and birds, the selection, score and streak,
+  the undo history (you can keep undoing), a stuck board's recovery offer, and
+  the clock picks up where it left off.
+- A **win** clears the save and adds to that difficulty's clears and bests.
+  Starting a new board replaces the save; the difficulty picker warns you when
+  one exists.
+
+**Bad or missing storage is handled quietly.**
+
+- `js/storage.js` probes `localStorage` once. If it's missing, throws on
+  access (blocked site data), or rejects writes (private mode, quota), an
+  in-memory store takes over. The game still runs, Continue works for the
+  session, and Settings shows a note that nothing will be kept after the tab
+  closes.
+- Every read and write is guarded. A write that starts failing mid-session is
+  simply skipped.
+- A saved board is only accepted if it could really have happened
+  (`js/game/save-format.js`):
+  - the layout exists and every array has the right length
+  - every bird is known and appears exactly four times, and the birds match
+    the original deal
+  - the removed tiles are exactly the undo history, and each history pair
+    shows one bird
+  - the score equals the sum of the recorded points, and the counters are
+    sane
+  - the selection is a free tile, and the original route really clears the
+    original deal
+
+  Anything else, including JSON that doesn't parse, an unknown version, or an
+  absurd time, is deleted rather than half-loaded.
+- Corrupt settings fall back field by field; corrupt best-score entries are
+  ignored.
 
 ## Game logic
 
@@ -345,7 +457,7 @@ flow (any key to start, Escape to pause and to go back).
 npm install                      # installs Playwright (dev only)
 npx playwright install chromium  # or set CHROMIUM_PATH=/path/to/chrome
 npm run test:layout -- shots/    # optional dir for per-screen screenshots
-npm test                         # logic, crops, layout and play checks
+npm test                         # logic, crops, layout, play, save and polish checks
 ```
 
 ## Checking play
@@ -385,6 +497,62 @@ board's solution from the same pure logic. It checks:
 ```sh
 npm run test:play -- shots/      # optional dir for screenshots
 ```
+
+## Checking saves
+
+`tests/save.test.js` covers the save format:
+
+- Several hundred reachable states survive a JSON round trip exactly: fresh,
+  mid-play with a selection, after undo, stuck (both kinds), after shuffle and
+  after restart, on all difficulties.
+- Each restored state then plays on identically: hints to the end, then undo
+  all the way back.
+- 22 deliberately broken saves are rejected, one for each invariant above,
+  plus envelope problems.
+- Storage that throws on every call, fills up mid-session, or holds junk
+  settings and bests is handled.
+
+`tools/verify-save.mjs` does real page reloads in Chromium:
+
+- **During play** (touch): board, birds, score, streak, selection and elapsed
+  time come back. The restored selection completes a match, and the board then
+  plays to a win.
+- **After undo** (mouse): the undone state is restored, and you can keep
+  undoing after the reload.
+- **After a win:** nothing is left to continue, and the clears and best show
+  per difficulty.
+- **Stuck board:** it restores with its Shuffle offer, and the shuffled deal is
+  what gets saved.
+- **Without a reload:** Pause → Main Menu → Continue resumes the board.
+- **Corrupt data:** corrupt save, settings and bests are discarded without
+  errors.
+- **Blocked storage:** with `localStorage` blocked, the game plays to a win and
+  says it can't save.
+
+```sh
+npm run test:save
+```
+
+## Checking polish and accessibility
+
+`tools/verify-polish.mjs` (`npm run test:polish`) covers:
+
+- **Keyboard only:** from the start screen, through the menu and difficulty,
+  to a cleared board using only Tab, the arrows, Enter, H and U. At every step
+  every free tile is reachable with the arrows, and focus stays visible and on
+  top. On a zoomed Hard board, the focused tile always scrolls into view.
+- **Labels:** every tile has a name, a state and a cue, and the crow and raven
+  are described differently.
+- **Sound:** there is no `AudioContext` before the first gesture, matches
+  chirp, and switching Sound off silences them.
+- **Animations:** the score floats and the celebration appear with Full (and
+  with Full over an OS reduce-motion preference). They don't appear with
+  Minimal or with the OS preference, where results follow right away.
+- **Quiet game:** a full touch game with Sound off and Animations Minimal has
+  no audio, no animation elements, and the same score.
+- **Contrast:** the rendered contrast of all text is checked on the start,
+  menu, difficulty, game, pause, New Game, How to Play, Settings and results
+  screens.
 
 ## Deploying to GitHub Pages
 

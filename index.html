@@ -44,7 +44,10 @@
           <h1 id="menu-title" class="brand">Bird <span>Mahjong</span></h1>
           <nav class="menu-nav" aria-label="Main menu">
             <button type="button" class="btn btn--primary" data-go="difficulty">New Game</button>
-            <button type="button" class="btn" id="btn-continue" disabled title="No saved game yet">Continue</button>
+            <button type="button" class="btn btn--continue" id="btn-continue" disabled title="No saved game yet" aria-describedby="continue-detail">
+              <span>Continue</span>
+              <small id="continue-detail" class="continue-detail"></small>
+            </button>
             <button type="button" class="btn" data-go="help">How to Play</button>
             <button type="button" class="btn" data-go="settings">Settings</button>
           </nav>
@@ -66,6 +69,7 @@
         </div>
       </header>
       <div class="panel-body">
+        <p id="difficulty-replace-note" class="difficulty-note" hidden>Starting a new board replaces your saved game. Use Continue on the menu to pick it up instead.</p>
         <ul id="difficulty-list" class="difficulty-list" role="list"></ul>
       </div>
     </section>
@@ -90,9 +94,9 @@
           </dl>
 
           <div class="game-tools" role="toolbar" aria-label="Game tools">
-            <button type="button" class="btn btn--small" id="btn-hint">Hint</button>
-            <button type="button" class="btn btn--small" id="btn-undo" disabled>Undo</button>
-            <button type="button" class="btn btn--small" id="btn-pause">Pause</button>
+            <button type="button" class="btn btn--small" id="btn-hint" aria-keyshortcuts="H">Hint</button>
+            <button type="button" class="btn btn--small" id="btn-undo" aria-keyshortcuts="U Control+Z Meta+Z" disabled>Undo</button>
+            <button type="button" class="btn btn--small" id="btn-pause" aria-keyshortcuts="Escape">Pause</button>
             <button type="button" class="btn btn--small" id="btn-game-new">New Game</button>
             <div class="zoom-controls" id="zoom-controls" role="group" aria-label="Board zoom" hidden>
               <button type="button" class="btn btn--small btn--icon" id="btn-zoom-out" aria-label="Zoom out">&minus;</button>
@@ -156,13 +160,22 @@
         </div>
       </header>
       <div class="panel-body prose">
+        <h2 class="first">The goal</h2>
+        <p>Clear every tile from the board by taking matching pairs of birds. There's no clock and no way to lose, so take your time.</p>
+
+        <h2>Taking a pair</h2>
         <ol class="steps">
-          <li><strong>Match pairs.</strong> Tap two identical bird tiles to remove them from the board.</li>
-          <li><strong>Only free tiles move.</strong> A tile is free when nothing sits on top of it and its left or right side is open.</li>
-          <li><strong>Clear the woodland.</strong> Remove every tile to win. There's no clock to beat and no way to lose. Take your time.</li>
-          <li><strong>Need help?</strong> Hint highlights a pair you can take right now. Undo puts the last pair back, along with its points. Neither costs anything.</li>
-          <li><strong>Out of moves?</strong> If no pair is left, you'll be offered a Shuffle. It re-deals the birds on the remaining tiles and checks that there's a way to finish. If the tiles left can't be cleared by any deal, Restart Board takes you back to the start of the same board.</li>
+          <li><strong>Pick a free tile.</strong> A tile is <em>free</em> when no tile sits on top of it and its left <em>or</em> right side is open.</li>
+          <li><strong>Pick its twin.</strong> Tap a second free tile showing <em>exactly the same bird</em>. Both leave the board.</li>
+          <li><strong>Changed your mind?</strong> Tap the selected tile again to let it go, or tap a different bird to switch.</li>
         </ol>
+
+        <h2>Help is free</h2>
+        <ul class="steps steps--plain">
+          <li><strong>Hint</strong> shows a pair you can take right now.</li>
+          <li><strong>Undo</strong> puts the last pair back, with its points.</li>
+          <li><strong>Out of pairs?</strong> You'll be offered a <strong>Shuffle</strong>, which re-deals the birds left on the board so there's always a way to finish. If no deal could work, <strong>Restart Board</strong> starts this board again.</li>
+        </ul>
 
         <h2>Reading the board</h2>
         <ul class="legend" role="list">
@@ -189,7 +202,19 @@
         </div>
 
         <h2>Controls</h2>
-        <p>Tap or click a tile to select it. When a big board is zoomed in, drag or scroll to pan, and use − / Fit / + to zoom. With a keyboard, Tab moves between free tiles and Enter selects. Escape pauses the game, or goes back a screen elsewhere.</p>
+        <p><strong>Touch or mouse:</strong> tap or click a tile. On a big board that's zoomed in, drag or swipe to look around, and use − / Fit / + to zoom.</p>
+        <dl class="keys">
+          <div><dt><kbd>Tab</kbd></dt><dd>Move to the board and between the buttons</dd></div>
+          <div><dt><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Move between free tiles</dd></div>
+          <div><dt><kbd>Enter</kbd> / <kbd>Space</kbd></dt><dd>Select a tile</dd></div>
+          <div><dt><kbd>H</kbd></dt><dd>Hint</dd></div>
+          <div><dt><kbd>U</kbd> / <kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Undo</dd></div>
+          <div><dt><kbd>Esc</kbd></dt><dd>Pause (or go back a screen)</dd></div>
+        </dl>
+        <p>Screen readers hear each tile's bird, whether it's free, selected, blocked or covered, and a short description such as “slim bill, pine boughs”.</p>
+
+        <h2>Sound and animation</h2>
+        <p>Both are optional and set separately in Settings. With sound off and animations on Minimal, the game plays exactly the same.</p>
       </div>
     </section>
 
@@ -205,14 +230,25 @@
       <div class="panel-body">
         <form id="settings-form" class="settings" onsubmit="return false">
           <fieldset class="setting">
-            <legend>Motion</legend>
-            <p class="setting-hint">“Match device” follows your system’s reduce-motion setting.</p>
+            <legend>Animations</legend>
+            <p class="setting-hint">Match effects, the board-clear moment and drifting birds. “Match device” follows your system’s reduce-motion setting. Minimal removes all movement; the game plays the same.</p>
             <div class="segmented">
               <label><input type="radio" name="motion" value="system"><span>Match device</span></label>
-              <label><input type="radio" name="motion" value="reduce"><span>Reduced</span></label>
+              <label><input type="radio" name="motion" value="reduce"><span>Minimal</span></label>
               <label><input type="radio" name="motion" value="full"><span>Full</span></label>
             </div>
           </fieldset>
+          <label class="setting setting--toggle">
+            <span>
+              <strong>Sound</strong>
+              <span class="setting-hint">Soft chirps and taps. Nothing plays until you tap or press a key.</span>
+            </span>
+            <input type="checkbox" name="sound" role="switch">
+          </label>
+          <label class="setting setting--range">
+            <span><strong>Sound volume</strong></span>
+            <input type="range" name="soundVolume" min="0" max="100" step="5">
+          </label>
           <label class="setting setting--toggle">
             <span>
               <strong>Floating background birds</strong>
@@ -223,7 +259,7 @@
           <label class="setting setting--toggle">
             <span>
               <strong>Show bird names on tiles</strong>
-              <span class="setting-hint">Helps tell look-alike birds apart. Takes effect once gameplay arrives.</span>
+              <span class="setting-hint">A short name on each tile, to tell look-alike birds apart.</span>
             </span>
             <input type="checkbox" name="tileLabels" role="switch">
           </label>
@@ -234,6 +270,7 @@
             </span>
             <input type="checkbox" name="streakBonus" role="switch">
           </label>
+          <p id="storage-note" class="storage-note" role="note" hidden>This browser isn't letting the game save (private browsing or blocked site data). Settings, best scores and your board will last only until you close the tab.</p>
           <button type="button" class="btn btn--quiet" id="btn-reset-settings">Reset to defaults</button>
         </form>
       </div>
@@ -258,6 +295,7 @@
           <div><dt>Fastest</dt><dd id="result-fastest">—</dd></div>
         </dl>
         <p class="results-note" id="results-note"></p>
+        <p class="results-note" id="result-cleared"></p>
         <div class="results-actions">
           <button type="button" class="btn btn--primary" id="btn-play-again">Play Again</button>
           <button type="button" class="btn" data-go="menu">Main Menu</button>
