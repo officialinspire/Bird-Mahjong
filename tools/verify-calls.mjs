@@ -117,7 +117,7 @@ async function wholeBoard(browser, url) {
   await startDifficulty(page, "hard");
   await waitForClips(page);
   s = await state(page);
-  check(Object.values(CALLS).every((u) => s.fetched.some((f) => f.endsWith(u))), "after the first tap, all five clips are fetched");
+  check(Object.values(CALLS).every((u) => s.fetched.some((f) => f.endsWith(u))), `after the first tap, all ${Object.keys(CALLS).length} clips are fetched`);
 
   const wrong = [];
   let calls = 0;
