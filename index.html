@@ -73,7 +73,7 @@
     <!-- 4. Game -->
     <section id="screen-game" class="screen screen--game" tabindex="-1" aria-labelledby="game-title" hidden>
       <header class="game-header">
-        <button type="button" class="icon-btn" data-go="menu" aria-label="Return to main menu">&#9776;</button>
+        <button type="button" class="icon-btn" id="btn-game-menu" aria-label="Pause and open game menu">&#9776;</button>
         <div class="game-title">
           <h1 id="game-title">Bird Mahjong</h1>
           <p id="game-difficulty">Easy</p>
@@ -82,24 +82,29 @@
       </header>
 
       <div class="game-layout">
-        <dl class="game-stats" aria-label="Current game">
-          <div><dt>Tiles left</dt><dd id="stat-tiles">—</dd></div>
-          <div><dt>Moves</dt><dd id="stat-moves">0</dd></div>
-          <div><dt>Time</dt><dd id="stat-time">0:00</dd></div>
-        </dl>
+        <div class="game-side">
+          <dl class="game-stats" aria-label="Current game">
+            <div><dt>Pairs left</dt><dd id="stat-pairs">—</dd></div>
+            <div><dt>Moves</dt><dd id="stat-moves">0</dd></div>
+            <div><dt>Time</dt><dd id="stat-time">0:00</dd></div>
+          </dl>
 
-        <div class="board-frame" id="board" role="region" aria-label="Tile board">
-          <div class="board-placeholder">
-            <p class="eyebrow">Board coming soon</p>
-            <p>Gameplay lands in the next update. This screen shows where the tile board, stats and tools will live.</p>
-            <button type="button" class="btn btn--sky" id="btn-preview-results">Preview results screen</button>
+          <div class="game-tools" role="toolbar" aria-label="Game tools">
+            <button type="button" class="btn btn--small" id="btn-hint">Hint</button>
+            <button type="button" class="btn btn--small" id="btn-shuffle">Shuffle</button>
+            <button type="button" class="btn btn--small" id="btn-undo" disabled>Undo</button>
+            <div class="zoom-controls" id="zoom-controls" role="group" aria-label="Board zoom" hidden>
+              <button type="button" class="btn btn--small btn--icon" id="btn-zoom-out" aria-label="Zoom out">&minus;</button>
+              <button type="button" class="btn btn--small" id="btn-zoom-fit">Fit</button>
+              <button type="button" class="btn btn--small btn--icon" id="btn-zoom-in" aria-label="Zoom in">+</button>
+            </div>
           </div>
         </div>
 
-        <div class="game-tools" role="toolbar" aria-label="Game tools">
-          <button type="button" class="btn btn--small" disabled>Hint</button>
-          <button type="button" class="btn btn--small" disabled>Shuffle</button>
-          <button type="button" class="btn btn--small" disabled>Undo</button>
+        <p id="game-message" class="game-message" role="status" aria-live="polite"></p>
+
+        <div id="board-viewport" class="board-viewport" role="group" aria-label="Tile board">
+          <div id="board" class="board-surface"></div>
         </div>
       </div>
 
@@ -108,6 +113,7 @@
           <p class="eyebrow">Resting on a branch</p>
           <h2 id="pause-title">Paused</h2>
           <button class="btn btn--primary" value="resume">Resume</button>
+          <button type="button" class="btn" id="btn-restart">New Board</button>
           <button type="button" class="btn" id="btn-pause-menu">Main Menu</button>
         </form>
       </dialog>
@@ -130,6 +136,17 @@
           <li><strong>Stuck?</strong> Use Hint to spot a free pair, Shuffle to rearrange the remaining tiles, or Undo to take back a move.</li>
         </ol>
 
+        <h2>Reading the board</h2>
+        <ul class="legend" role="list">
+          <li><span class="legend-tile tile is-free" aria-hidden="true"><img src="assets/tiles-sm/09-blue-jay.webp" alt="" width="120" height="153"></span><span><strong>Free</strong> Bright and raised. You can pick it.</span></li>
+          <li><span class="legend-tile tile is-free is-selected" aria-hidden="true"><img src="assets/tiles-sm/09-blue-jay.webp" alt="" width="120" height="153"><span class="tile-badge"></span></span><span><strong>Selected</strong> Lifted, with a thick ring and a ✓ badge.</span></li>
+          <li><span class="legend-tile tile is-blocked" aria-hidden="true"><img src="assets/tiles-sm/09-blue-jay.webp" alt="" width="120" height="153"></span><span><strong>Blocked</strong> Faded, with diagonal stripes. It is covered or boxed in on both sides.</span></li>
+          <li><span class="legend-tile tile is-free is-hint" aria-hidden="true"><img src="assets/tiles-sm/09-blue-jay.webp" alt="" width="120" height="153"><span class="tile-badge"></span></span><span><strong>Hint</strong> A dashed ring and a “?” badge.</span></li>
+        </ul>
+
+        <h2>Scoring</h2>
+        <p id="scoring-text"></p>
+
         <h2>Look closely</h2>
         <p>Two dark birds look alike at a glance, but they are different tiles and don't match each other.</p>
         <div class="lookalikes">
@@ -144,7 +161,7 @@
         </div>
 
         <h2>Controls</h2>
-        <p>Touch or click to select a tile. With a keyboard, use Tab and Enter; Escape pauses the game or goes back a screen.</p>
+        <p>Tap or click a tile to select it. When a big board is zoomed in, drag or scroll to pan, and use − / Fit / + to zoom. With a keyboard, Tab moves between free tiles and Enter selects. Escape pauses the game, or goes back a screen elsewhere.</p>
       </div>
     </section>
 
@@ -203,7 +220,7 @@
           <div><dt>Hints</dt><dd id="result-hints">—</dd></div>
           <div><dt>Score</dt><dd id="result-score">—</dd></div>
         </dl>
-        <p class="results-note">Preview only — real results appear once gameplay is in.</p>
+        <p class="results-note" id="results-note"></p>
         <div class="results-actions">
           <button type="button" class="btn btn--primary" id="btn-play-again">Play Again</button>
           <button type="button" class="btn" data-go="menu">Main Menu</button>

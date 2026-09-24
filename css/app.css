@@ -121,9 +121,9 @@ html[data-motion="reduce"] .start-prompt { animation: none; }
   html[data-motion="system"] .float-tile { top: var(--y); transform: rotate(var(--rot)); }
   html[data-motion="system"] .screen.is-active { animation: none; }
   html[data-motion="system"] .start-prompt { animation: none; }
-  html[data-motion="system"] * { transition-duration: 0.01ms !important; }
+  html[data-motion="system"] * { transition: none !important; }
 }
-html[data-motion="reduce"] * { transition-duration: 0.01ms !important; }
+html[data-motion="reduce"] * { transition: none !important; }
 
 /* ---------- Screens ---------- */
 
@@ -399,24 +399,40 @@ input[role="switch"]:checked::after { transform: translateX(22px); }
 
 /* ---------- Game ---------- */
 
-.screen--game { gap: 12px; }
+/* The game screen is exactly one viewport tall; the board scrolls inside its
+   own frame so the page itself never scrolls or zooms during play. */
+.screen--game {
+  gap: 10px;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
 .game-header {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 12px;
 }
-.game-title { text-align: center; }
+.game-title { text-align: center; min-width: 0; }
 .game-title h1 { font-size: 1.35rem; color: var(--leaf-dark); }
 .game-title p { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sky-ink); }
 
 .game-layout {
   flex: 1;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 12px;
   min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "stats" "message" "board" "tools";
+  gap: 8px;
 }
+/* On phones the side column dissolves into the grid rows above/below the board. */
+.game-side { display: contents; }
+.game-stats { grid-area: stats; }
+.game-message { grid-area: message; }
+.board-viewport { grid-area: board; }
+.game-tools { grid-area: tools; }
 
 .game-stats {
   display: grid;
@@ -425,7 +441,7 @@ input[role="switch"]:checked::after { transform: translateX(22px); }
   margin: 0;
 }
 .game-stats div, .results-metrics div {
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
   background: rgb(255 253 247 / 0.9);
   border: 1px solid rgb(217 191 134 / 0.55);
@@ -445,20 +461,211 @@ input[role="switch"]:checked::after { transform: translateX(22px); }
   font-variant-numeric: tabular-nums;
 }
 
-.board-frame {
-  min-height: 320px;
-  display: grid;
-  place-items: center;
-  padding: 20px;
+/* Fixed two-line height so messages never shift the board. */
+.game-message {
+  height: 2.6em;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  text-align: center;
+  text-wrap: balance;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--bark-soft);
+}
+.game-message[data-tone="good"] { color: var(--leaf-dark); }
+.game-message[data-tone="good"]::before { content: "✓ "; }
+.game-message[data-tone="warn"] { color: var(--bark); }
+.game-message[data-tone="warn"]::before { content: "• "; color: var(--cardinal); }
+
+.board-viewport {
+  position: relative;
+  display: flex;          /* auto margins centre the board without clipping it */
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y; /* scroll to pan; no page pinch-zoom or double-tap zoom */
   border-radius: var(--radius);
   background:
-    linear-gradient(rgb(255 253 247 / 0.72), rgb(255 253 247 / 0.72)),
-    repeating-linear-gradient(90deg, var(--leaf-tint) 0 2px, transparent 2px 28px);
-  border: 2px dashed rgb(61 122 53 / 0.35);
+    radial-gradient(90% 70% at 50% 40%, rgb(255 253 247 / 0.55), transparent 75%),
+    repeating-linear-gradient(90deg, rgb(61 122 53 / 0.05) 0 1px, transparent 1px 22px),
+    var(--leaf-tint);
+  border: 1px solid rgb(61 122 53 / 0.25);
+  box-shadow: inset 0 2px 10px rgb(47 42 32 / 0.08);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  scrollbar-width: thin;
 }
-.board-placeholder { max-width: 34ch; display: grid; gap: 12px; text-align: center; justify-items: center; color: var(--bark-soft); }
+.board-viewport.is-pannable { cursor: grab; }
+.board-viewport.is-dragging { cursor: grabbing; }
+.board-viewport.is-dragging .tile { cursor: grabbing; }
 
-.game-tools { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.board-surface {
+  position: relative;
+  flex: none;
+  margin: auto;
+}
+
+/* ---------- Tiles ---------- */
+
+.tile {
+  --edge: calc(var(--tile-w, 48px) * 0.06);
+  position: absolute;
+  padding: 0;
+  border: 0;
+  border-radius: 11% / 9%;
+  background: #e9d6a6;
+  color: var(--bark);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  /* Thickness on the bottom-right edge, then a soft drop shadow. */
+  box-shadow:
+    var(--edge) var(--edge) 0 #b8955a,
+    calc(var(--edge) + 1px) calc(var(--edge) + 2px) 4px rgb(47 42 32 / 0.28);
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+.tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  border-radius: inherit;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.tile[hidden] { display: none; }
+.tile:focus-visible { outline: 3px solid var(--cardinal); outline-offset: 2px; }
+
+/* Free: full colour; lifts a touch under a mouse. */
+@media (hover: hover) {
+  .tile.is-free:hover { transform: translateY(-3%); }
+}
+
+/* Blocked: faded AND striped, so it doesn't depend on colour perception. */
+.tile.is-blocked { cursor: not-allowed; }
+.tile.is-blocked img { filter: saturate(0.4) brightness(0.8) contrast(0.9); }
+.tile.is-blocked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    135deg,
+    rgb(47 42 32 / 0.26) 0 2px,
+    transparent 2px 7px
+  );
+  pointer-events: none;
+}
+
+/* Selected: lifted, thick double ring AND a ✓ badge. */
+.tile.is-selected {
+  transform: translateY(-9%);
+  box-shadow:
+    0 0 0 3px var(--paper),
+    0 0 0 6px var(--leaf-dark),
+    var(--edge) calc(var(--edge) + 6px) 10px rgb(47 42 32 / 0.35);
+}
+
+/* Hint: dashed ring AND a "?" badge (plus a slow pulse when motion is on). */
+.tile.is-hint {
+  outline: 3px dashed var(--sky-ink);
+  outline-offset: 3px;
+  animation: hint-pulse 1.6s ease-in-out infinite;
+}
+@keyframes hint-pulse { 50% { outline-offset: 6px; } }
+
+.tile-badge {
+  display: none;
+  position: absolute;
+  top: -8%;
+  right: -10%;
+  width: max(20px, calc(var(--tile-w, 48px) * 0.42));
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--paper);
+  box-shadow: 0 2px 4px rgb(47 42 32 / 0.3);
+  font: 800 max(12px, calc(var(--tile-w, 48px) * 0.24)) / 1 var(--font);
+  place-items: center;
+  pointer-events: none;
+}
+.tile.is-selected .tile-badge { display: grid; background: var(--leaf-dark); color: #fff; }
+.tile.is-selected .tile-badge::before { content: "✓"; }
+.tile.is-hint:not(.is-selected) .tile-badge { display: grid; background: var(--sky-ink); color: #fff; }
+.tile.is-hint:not(.is-selected) .tile-badge::before { content: "?"; }
+
+/* Optional bird-name labels (Settings). */
+.tile-label {
+  display: none;
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 7%;
+  padding: 1px 2px;
+  border-radius: 4px;
+  background: rgb(255 253 247 / 0.92);
+  font: 700 max(8px, calc(var(--tile-w, 48px) * 0.15)) / 1.15 var(--font);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+html[data-tile-labels="on"] .tile-label { display: block; }
+
+/* Gentle feedback: matched tiles float up and fade; blocked taps wiggle. */
+.tile.is-removing {
+  pointer-events: none;
+  z-index: 5000 !important;
+  animation: tile-out 320ms ease-in forwards;
+}
+@keyframes tile-out {
+  0% { transform: translateY(-9%); opacity: 1; }
+  40% { transform: translateY(-16%) scale(1.06); opacity: 1; }
+  100% { transform: translateY(-30%) scale(0.9); opacity: 0; }
+}
+.tile.is-nudge { animation: nudge 280ms ease-in-out; }
+@keyframes nudge {
+  25% { transform: translateX(-4%); }
+  75% { transform: translateX(4%); }
+}
+
+.reduce-motion .tile,
+.reduce-motion .tile.is-hint,
+.reduce-motion .tile.is-nudge { animation: none; transition: none; }
+.reduce-motion .tile.is-removing { animation: none; opacity: 0; }
+
+.game-tools {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.zoom-controls { display: flex; gap: 6px; }
+.zoom-controls[hidden] { display: none; }
+.btn--icon { min-width: 44px; padding-inline: 0.6em; font-size: 1.2rem; line-height: 1; }
+
+/* How to Play legend: real tile states at a fixed size. */
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.legend li { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 14px; }
+.legend strong { display: block; color: var(--bark); }
+.legend li > span:last-child { color: var(--bark-soft); font-size: 0.92rem; }
+.legend-tile.tile {
+  --tile-w: 44px;
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 56px;
+  margin: 8px 0 0 2px;
+  cursor: default;
+}
+.legend-tile.is-hint { animation: none; }
 
 /* Pause dialog */
 .dialog {
@@ -524,8 +731,6 @@ input[role="switch"]:checked::after { transform: translateX(22px); }
 
   .lookalikes img { width: 110px; }
 
-  .game-stats dd { font-size: 1.5rem; }
-  .board-frame { min-height: 420px; }
 
   .results-card { padding: 32px; }
   .results-metrics { grid-template-columns: repeat(4, 1fr); }
@@ -547,14 +752,54 @@ input[role="switch"]:checked::after { transform: translateX(22px); }
   .menu-content { text-align: left; justify-items: stretch; }
   .menu-footer { justify-content: flex-start; }
 
-  .screen--game { max-width: 1280px; width: 100%; margin: 0 auto; }
+  .screen--game { max-width: 1400px; width: 100%; margin: 0 auto; }
+}
+
+/* ---------- Wide game layout: desktop, and landscape phones ----------
+   Stats and tools move to a side column so the board gets the full height. */
+
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 560px) {
   .game-layout {
-    grid-template-columns: 220px 1fr;
-    grid-template-rows: 1fr auto;
-    gap: 16px 24px;
+    grid-template-columns: minmax(150px, 210px) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "side message" "side board";
+    gap: 8px 16px;
   }
-  .game-stats { grid-template-columns: 1fr; align-content: start; grid-row: 1 / span 2; }
-  .game-stats div { text-align: left; padding: 14px 16px; }
-  .board-frame { grid-column: 2; }
-  .game-tools { grid-column: 2; }
+  .game-side {
+    grid-area: side;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .game-stats { grid-template-columns: 1fr; }
+  .game-stats div { display: flex; justify-content: space-between; align-items: baseline; text-align: left; padding: 8px 12px; }
+  .game-tools { flex-direction: column; align-items: stretch; }
+  .zoom-controls { justify-content: space-between; }
+  .zoom-controls .btn { flex: 1; }
+}
+
+@media (min-width: 1024px) {
+  .game-stats div { display: block; padding: 12px 16px; }
+  .game-stats dd { font-size: 1.6rem; }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .screen--game { gap: 6px; padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .game-title h1 { font-size: 1.1rem; }
+  .game-stats { gap: 4px; }
+  .game-stats div { padding: 4px 10px; }
+  .game-stats dd { font-size: 1rem; }
+  .game-tools { gap: 6px; }
+}
+
+/* Narrow phones: keep header and stats to one line each so the board keeps its height. */
+.game-title p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 380px) {
+  .game-stats dt { font-size: 0.62rem; letter-spacing: 0.05em; white-space: nowrap; }
+  .game-stats dd { font-size: 1.1rem; }
+  .game-title h1 { font-size: 1.15rem; }
+  .game-tools { gap: 6px; }
+  .game-tools .btn--small { padding-inline: 0.8em; }
 }

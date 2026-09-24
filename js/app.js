@@ -1,10 +1,13 @@
 // Bird Mahjong app shell: screen flow, settings and background.
 // Flow: Start → Main menu → Difficulty → Game → Results, plus How to Play
-// and Settings off the menu. No gameplay yet.
+// and Settings off the menu. Gameplay lives in js/ui/game-controller.js on
+// top of the pure logic in js/game/.
 
 import { DIFFICULTIES, SMALL_TILE_DIR, difficultyById } from "./config.js";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings.js";
 import { renderBackground } from "./background.js";
+import { SCORING } from "./game/score.js";
+import { createGameController } from "./ui/game-controller.js";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -19,14 +22,16 @@ const state = {
 function showScreen(name) {
   const next = document.getElementById(`screen-${name}`);
   if (!next) return;
+  const leaving = state.screen;
+  state.screen = name; // set first: closing the pause dialog checks it
   if ($("#pause-dialog").open) $("#pause-dialog").close();
+  if (leaving === "game" && name !== "game") game.pause();
 
   document.querySelectorAll(".screen").forEach((screen) => {
     const active = screen === next;
     screen.hidden = !active;
     screen.classList.toggle("is-active", active);
   });
-  state.screen = name;
   document.body.dataset.screen = name;
   window.scrollTo(0, 0);
   // Move focus to the new screen so keyboard and screen-reader users land
@@ -72,20 +77,71 @@ function renderDifficulties() {
   );
 }
 
+// ---------- Game ----------
+
+const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+function reducedMotion() {
+  const { motion } = state.settings;
+  return motion === "reduce" || (motion === "system" && media.matches);
+}
+
+const game = createGameController({
+  elements: {
+    viewport: $("#board-viewport"),
+    board: $("#board"),
+    message: $("#game-message"),
+    pairs: $("#stat-pairs"),
+    moves: $("#stat-moves"),
+    time: $("#stat-time"),
+    hint: $("#btn-hint"),
+    shuffle: $("#btn-shuffle"),
+    undo: $("#btn-undo"),
+    zoom: {
+      root: $("#zoom-controls"),
+      in: $("#btn-zoom-in"),
+      out: $("#btn-zoom-out"),
+      fit: $("#btn-zoom-fit"),
+    },
+  },
+  reducedMotion,
+  onWin: showResults,
+});
+
+// `?seed=123` replays a specific first board (handy for sharing and tests).
+let pendingSeed = (() => {
+  const raw = new URLSearchParams(location.search).get("seed");
+  return raw !== null && /^\d+$/.test(raw) ? Number(raw) : undefined;
+})();
+
 function startGame(difficultyId) {
   const d = difficultyById(difficultyId);
   state.difficulty = d.id;
   $("#game-difficulty").textContent = `${d.name} · ${d.habitat}`;
-  $("#stat-tiles").textContent = String(d.tiles);
-  $("#stat-moves").textContent = "0";
-  $("#stat-time").textContent = "0:00";
+  // Show the screen first so the board can measure its viewport.
   showScreen("game");
+  game.start(d, { seed: pendingSeed });
+  pendingSeed = undefined;
 }
 
-function showResults() {
+function showResults(summary) {
   const d = difficultyById(state.difficulty);
   $("#results-difficulty").textContent = `${d.name} · ${d.habitat}`;
+  $("#result-time").textContent = summary.time;
+  $("#result-moves").textContent = String(summary.moves);
+  $("#result-hints").textContent = String(summary.hintsUsed);
+  $("#result-score").textContent = summary.score.toLocaleString();
+  const extras = [];
+  if (summary.shuffles) extras.push(`${summary.shuffles} shuffle${summary.shuffles === 1 ? "" : "s"}`);
+  if (summary.mismatches) extras.push(`${summary.mismatches} mismatch${summary.mismatches === 1 ? "" : "es"}`);
+  $("#results-note").textContent = extras.length ? `Including ${extras.join(" and ")}.` : "A clean clear — no shuffles or mismatches.";
   showScreen("results");
+}
+
+function openPause() {
+  if (state.screen !== "game" || $("#pause-dialog").open) return;
+  game.pause();
+  $("#pause-dialog").showModal();
 }
 
 // ---------- Settings ----------
@@ -94,6 +150,7 @@ function applySettings() {
   const { motion, backgroundBirds, tileLabels } = state.settings;
   document.documentElement.dataset.motion = motion;
   document.documentElement.dataset.tileLabels = tileLabels ? "on" : "off";
+  document.documentElement.classList.toggle("reduce-motion", reducedMotion());
   $("#sky-tiles").hidden = !backgroundBirds;
 }
 
@@ -113,6 +170,7 @@ function onSettingsChange() {
   };
   saveSettings(state.settings);
   applySettings();
+  game.refresh();
 }
 
 function resetSettings() {
@@ -136,7 +194,7 @@ function onKeydown(event) {
     // The open dialog handles its own Escape (closing = resume).
     if (!$("#pause-dialog").open) {
       event.preventDefault();
-      $("#pause-dialog").showModal();
+      openPause();
     }
   } else if (state.screen !== "menu") {
     showScreen("menu");
@@ -155,10 +213,24 @@ function bindEvents() {
     if (option) startGame(option.dataset.difficulty);
   });
 
-  $("#btn-pause").addEventListener("click", () => $("#pause-dialog").showModal());
+  $("#btn-pause").addEventListener("click", openPause);
+  // The ☰ button pauses rather than leaving, so a stray tap can't end a game.
+  $("#btn-game-menu").addEventListener("click", openPause);
+  $("#pause-dialog").addEventListener("close", () => {
+    if (state.screen === "game") game.resume();
+  });
+  $("#btn-restart").addEventListener("click", () => {
+    $("#pause-dialog").close();
+    startGame(state.difficulty);
+  });
   $("#btn-pause-menu").addEventListener("click", () => showScreen("menu"));
-  $("#btn-preview-results").addEventListener("click", showResults);
   $("#btn-play-again").addEventListener("click", () => startGame(state.difficulty));
+
+  // Leaving the tab or app pauses the game (and its clock).
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) openPause();
+  });
+  media.addEventListener("change", applySettings);
 
   $("#settings-form").addEventListener("change", onSettingsChange);
   $("#btn-reset-settings").addEventListener("click", resetSettings);
@@ -181,7 +253,15 @@ function widthBand() {
 
 // ---------- Boot ----------
 
+function renderScoring() {
+  const s = SCORING;
+  $("#scoring-text").textContent =
+    `${s.perPair} points per pair, minus ${s.perSecond} per second, ${s.perHint} per hint, ` +
+    `${s.perShuffle} per shuffle and ${s.perMismatch} per mismatch.`;
+}
+
 renderDifficulties();
+renderScoring();
 syncSettingsForm();
 applySettings();
 renderBackground($("#sky-tiles"));

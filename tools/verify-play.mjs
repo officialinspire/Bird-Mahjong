@@ -1,0 +1,321 @@
+#!/usr/bin/env node
+// Touch and mouse play checks in real Chromium.
+//
+// Boards are seeded (?seed=...) and the tests derive each board's solution
+// from the same pure logic, so every run plays the same known games.
+//
+// Covers:
+//   * readable tiles (>= MIN_TILE px) on every viewport × difficulty, zoom
+//     controls only when the board can't fit, and no page scrolling
+//   * every free tile is really hit-testable (not hidden under another)
+//   * blocked / covered taps don't select; states are marked without colour
+//     (hatch pattern, ✓ badge, ARIA state)
+//   * select, double tap guard, background taps ignored, mismatch, match,
+//     pairs-left counter, hint, undo, shuffle
+//   * zoom in/out/fit, mouse-drag panning that doesn't select, touch swipe
+//     panning that doesn't select
+//   * a full game won by touch taps (zoomed phone) and one by mouse clicks,
+//     ending on the results screen
+//
+// Usage: node tools/verify-play.mjs [screenshot-dir]
+
+import fs from "node:fs";
+import path from "node:path";
+import { launchBrowser, serve } from "./lib/serve.mjs";
+import { SEED, afterMatch, playPairs, solutionFor, startDifficulty, tile } from "./lib/play.mjs";
+import { DIFFICULTIES } from "../js/config.js";
+import { MIN_TILE } from "../js/ui/board-view.js";
+
+const SHOT_DIR = process.argv[2] ? path.resolve(process.argv[2]) : null;
+let failures = 0;
+const check = (ok, label, detail = "") => {
+  if (ok) console.log(`  ok   ${label}`);
+  else { failures++; console.log(`  FAIL ${label}${detail ? ` — ${detail}` : ""}`); }
+};
+
+const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
+const SMALL_PHONE = { viewport: { width: 320, height: 568 }, hasTouch: true, isMobile: true };
+const DESKTOP = { viewport: { width: 1280, height: 720 } };
+
+async function openGame(browser, url, contextOptions, difficulty, { reduced = true } = {}) {
+  const context = await browser.newContext({ ...contextOptions, reducedMotion: reduced ? "reduce" : "no-preference" });
+  const page = await context.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  await page.goto(`${url}?seed=${SEED}`, { waitUntil: "networkidle" });
+  await startDifficulty(page, difficulty);
+  return { context, page, errors };
+}
+
+const boardState = (page) =>
+  page.evaluate(() => {
+    const tiles = [...document.querySelectorAll("#board .tile")];
+    return {
+      selected: tiles.filter((t) => t.classList.contains("is-selected")).map((t) => Number(t.dataset.index)),
+      visible: tiles.filter((t) => !t.hidden).length,
+      pairs: document.getElementById("stat-pairs").textContent,
+      moves: document.getElementById("stat-moves").textContent,
+      message: document.getElementById("game-message").textContent,
+    };
+  });
+
+/** A blocked tile whose centre is actually visible (not under another tile). */
+const visibleBlockedTile = (page) =>
+  page.evaluate(() => {
+    for (const t of document.querySelectorAll("#board .tile.is-blocked")) {
+      if (t.hidden) continue;
+      t.scrollIntoView({ block: "center", inline: "center" });
+      const r = t.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      if (hit && hit.closest(".tile") === t) return { index: Number(t.dataset.index), x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+    return null;
+  });
+
+/** Two free tiles with different birds. */
+const mismatchPair = (page) =>
+  page.evaluate(() => {
+    const free = [...document.querySelectorAll("#board .tile.is-free")];
+    for (const a of free) for (const b of free) if (a.dataset.bird !== b.dataset.bird) return [Number(a.dataset.index), Number(b.dataset.index)];
+    return null;
+  });
+
+async function readability(browser, url) {
+  console.log("readability, hit-testing and fit");
+  const viewports = {
+    "320x568": SMALL_PHONE, "390x844": PHONE, "844x390": { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true },
+    "768x1024": { viewport: { width: 768, height: 1024 }, hasTouch: true }, "1280x720": DESKTOP, "1920x1080": { viewport: { width: 1920, height: 1080 } },
+  };
+  for (const [vpName, options] of Object.entries(viewports)) {
+    for (const d of DIFFICULTIES) {
+      const { context, page, errors } = await openGame(browser, url, options, d.id);
+      const r = await page.evaluate(() => {
+        const vp = document.getElementById("board-viewport");
+        const tiles = [...document.querySelectorAll("#board .tile")];
+        const widths = tiles.map((t) => t.getBoundingClientRect().width);
+        const unhittable = [];
+        for (const t of tiles.filter((x) => x.classList.contains("is-free"))) {
+          t.scrollIntoView({ block: "center", inline: "center" });
+          const b = t.getBoundingClientRect();
+          const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+          if (!hit || hit.closest(".tile") !== t) unhittable.push(t.dataset.index);
+        }
+        return {
+          minW: Math.min(...widths),
+          overflow: vp.scrollWidth > vp.clientWidth + 1 || vp.scrollHeight > vp.clientHeight + 1,
+          zoomShown: !document.getElementById("zoom-controls").hidden,
+          pageScroll: document.documentElement.scrollHeight - innerHeight,
+          unhittable,
+        };
+      });
+      const label = `${vpName} ${d.id}: tiles ${Math.round(r.minW)}px${r.zoomShown ? ", zoom/pan" : ", fits"}`;
+      const problems = [];
+      if (r.minW < MIN_TILE - 0.5) problems.push(`tiles narrower than ${MIN_TILE}px`);
+      if (r.overflow && !r.zoomShown) problems.push("board overflows but zoom controls are hidden");
+      if (r.pageScroll > 1) problems.push(`page scrolls by ${r.pageScroll}px`);
+      if (r.unhittable.length) problems.push(`free tiles not hittable: ${r.unhittable.join(",")}`);
+      if (errors.length) problems.push(errors.join("; "));
+      check(!problems.length, label, problems.join("; "));
+      if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `play-${vpName}-${d.id}.png`) });
+      await context.close();
+    }
+  }
+}
+
+async function interactions(browser, url, name, options, input) {
+  console.log(`${name}: interactions (${input})`);
+  const { context, page, errors } = await openGame(browser, url, options, "easy");
+  const press = (selector) => (input === "touch" ? page.tap(selector) : page.click(selector));
+  const pressAt = (x, y) => (input === "touch" ? page.touchscreen.tap(x, y) : page.mouse.click(x, y));
+
+  // Blocked tile: tapping it must not select, and it must be marked without colour.
+  const blocked = await visibleBlockedTile(page);
+  check(!!blocked, "found a visible blocked tile");
+  if (blocked) {
+    await pressAt(blocked.x, blocked.y);
+    const s = await boardState(page);
+    check(s.selected.length === 0, "blocked tile can't be selected", `selected ${s.selected}`);
+    check(/blocked|covered/.test(s.message), "blocked tap explains why", s.message);
+    const marks = await page.evaluate((i) => {
+      const t = document.querySelector(`#board .tile[data-index="${i}"]`);
+      return { hatch: getComputedStyle(t, "::after").backgroundImage, disabled: t.getAttribute("aria-disabled"), label: t.getAttribute("aria-label") };
+    }, blocked.index);
+    check(marks.hatch.includes("repeating-linear-gradient"), "blocked tiles carry a stripe pattern, not just a colour");
+    check(marks.disabled === "true" && /blocked|covered/.test(marks.label), "blocked state is exposed to assistive tech", marks.label);
+  }
+  const covered = await page.evaluate(() =>
+    [...document.querySelectorAll("#board .tile")].some((t) => /covered$/.test(t.getAttribute("aria-label")) && t.classList.contains("is-blocked")));
+  check(covered, "covered tiles are marked blocked and labelled 'covered'");
+
+  // Select a free tile.
+  const [a, b] = solutionFor("easy")[0];
+  await press(tile(a));
+  let s = await boardState(page);
+  check(s.selected.length === 1 && s.selected[0] === a, "free tile selects");
+  const badge = await page.evaluate((i) => {
+    const t = document.querySelector(`#board .tile[data-index="${i}"]`);
+    return { content: getComputedStyle(t.querySelector(".tile-badge"), "::before").content, pressed: t.getAttribute("aria-pressed") };
+  }, a);
+  check(badge.content.includes("✓") && badge.pressed === "true", "selected tile shows a ✓ badge and aria-pressed");
+
+  // Double tap on the selected tile: must stay selected (not toggle off).
+  await (input === "touch" ? page.tap(tile(a)) : page.click(tile(a)));
+  s = await boardState(page);
+  check(s.selected[0] === a, "a quick second tap on the same tile is ignored (double-tap guard)");
+
+  // Background taps: board felt and the stats area do nothing.
+  const felt = await page.evaluate(() => {
+    const vp = document.getElementById("board-viewport").getBoundingClientRect();
+    for (const [fx, fy] of [[0.02, 0.02], [0.98, 0.98], [0.02, 0.98], [0.98, 0.02]]) {
+      const x = vp.left + vp.width * fx, y = vp.top + vp.height * fy;
+      if (!document.elementFromPoint(x, y)?.closest(".tile")) return { x, y };
+    }
+    return null;
+  });
+  if (felt) await pressAt(felt.x, felt.y);
+  await press("#stat-moves");
+  s = await boardState(page);
+  check(!!felt && s.selected[0] === a && s.moves === "0", "background taps don't change the selection");
+
+  // Mismatch moves the selection.
+  const mm = await mismatchPair(page);
+  await page.waitForTimeout(400); // clear the double-tap window
+  await press(tile(mm[0]));
+  await press(tile(mm[1]));
+  s = await boardState(page);
+  check(s.selected.length === 1 && s.selected[0] === mm[1] && /don't match/.test(s.message), "mismatch keeps one selection and explains", s.message);
+
+  // Match: select a, tap b.
+  await press(tile(a));
+  await press(tile(b));
+  await afterMatch(page, a, b);
+  s = await boardState(page);
+  check(s.pairs === "23" && s.moves === "1" && /Matched/.test(s.message), "matching removes both tiles and counts down pairs", `${s.pairs} pairs, ${s.moves} moves`);
+
+  // Undo, hint, shuffle.
+  await press("#btn-undo");
+  s = await boardState(page);
+  check(s.pairs === "24" && s.visible === 48, "undo restores the pair");
+  await press("#btn-hint");
+  const hinted = await page.evaluate(() => {
+    const h = [...document.querySelectorAll("#board .tile.is-hint")];
+    return { n: h.length, same: h.length === 2 && h[0].dataset.bird === h[1].dataset.bird, badge: h[0] && getComputedStyle(h[0].querySelector(".tile-badge"), "::before").content, dashed: h[0] && getComputedStyle(h[0]).outlineStyle };
+  });
+  check(hinted.n === 2 && hinted.same && hinted.badge.includes("?") && hinted.dashed === "dashed", "hint marks a matching free pair with a dashed ring and ? badge");
+  const before = await page.evaluate(() => [...document.querySelectorAll("#board .tile:not([hidden])")].map((t) => t.dataset.bird).sort().join());
+  const order = await page.evaluate(() => [...document.querySelectorAll("#board .tile")].map((t) => t.dataset.bird).join());
+  await press("#btn-shuffle");
+  const after = await page.evaluate(() => [...document.querySelectorAll("#board .tile:not([hidden])")].map((t) => t.dataset.bird).sort().join());
+  const order2 = await page.evaluate(() => [...document.querySelectorAll("#board .tile")].map((t) => t.dataset.bird).join());
+  check(before === after && order !== order2, "shuffle re-deals the same birds");
+
+  check(errors.length === 0, "no page errors", errors.join("; "));
+  if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `play-${name}-interactions.png`) });
+  await context.close();
+}
+
+async function zoomAndPan(browser, url) {
+  console.log("zoom and pan (320px phone, Insane)");
+  // Touch: zoom controls, swipe to pan without selecting.
+  {
+    const { context, page } = await openGame(browser, url, SMALL_PHONE, "insane");
+    const vp = "#board-viewport";
+    const read = () => page.evaluate(() => {
+      const v = document.getElementById("board-viewport");
+      return { w: parseFloat(getComputedStyle(document.getElementById("board")).getPropertyValue("--tile-w")), sw: v.scrollWidth, cw: v.clientWidth, sl: v.scrollLeft, st: v.scrollTop, fitDisabled: document.getElementById("btn-zoom-fit").disabled, inDisabled: document.getElementById("btn-zoom-in").disabled };
+    });
+    let z = await read();
+    check(!(await page.isHidden("#zoom-controls")) && z.w >= MIN_TILE && z.sw > z.cw, `starts zoomed to readable ${z.w}px tiles with panning`);
+    await page.tap("#btn-zoom-fit");
+    const fit = await read();
+    check(fit.sw <= fit.cw + 1 && fit.fitDisabled, `Fit shows the whole board (${fit.w}px tiles)`);
+    await page.tap("#btn-zoom-in");
+    await page.tap("#btn-zoom-in");
+    await page.tap("#btn-zoom-in");
+    const zin = await read();
+    check(zin.w > fit.w * 1.8 && zin.sw > zin.cw, `+ zooms in (${zin.w}px tiles)`);
+    for (let i = 0; i < 12; i++) if (!(await page.isDisabled("#btn-zoom-in"))) await page.tap("#btn-zoom-in");
+    const max = await read();
+    check(max.inDisabled && max.w <= 110.5, `zoom in stops at a maximum (${max.w}px)`);
+
+    // Swipe with a real touch sequence over a tile: the board scrolls and nothing is selected.
+    const box = await page.locator(vp).boundingBox();
+    const cdp = await context.newCDPSession(page);
+    const x0 = box.x + box.width * 0.7, y0 = box.y + box.height * 0.5;
+    const sl0 = (await read()).sl;
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: x0, y: y0 }] });
+    for (let k = 1; k <= 10; k++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x0 - k * 15, y: y0 }] });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(300);
+    const swiped = await read();
+    const s = await boardState(page);
+    check(swiped.sl > sl0 + 40 && s.selected.length === 0, `touch swipe pans the board (${Math.round(swiped.sl - sl0)}px) without selecting`);
+    if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, "play-zoomed.png") });
+    await context.close();
+  }
+  // Mouse: drag to pan must not select the tile under the pointer.
+  {
+    const { context, page } = await openGame(browser, url, { viewport: { width: 320, height: 568 } }, "insane");
+    const free = await page.evaluate(() => {
+      const t = [...document.querySelectorAll("#board .tile.is-free")].find((x) => {
+        const r = x.getBoundingClientRect();
+        const v = document.getElementById("board-viewport").getBoundingClientRect();
+        return r.left > v.left + 60 && r.right < v.right && r.top > v.top && r.bottom < v.bottom;
+      });
+      const r = t.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    const sl0 = await page.evaluate(() => document.getElementById("board-viewport").scrollLeft);
+    await page.mouse.move(free.x, free.y);
+    await page.mouse.down();
+    await page.mouse.move(free.x + 30, free.y, { steps: 3 });
+    await page.mouse.move(free.x + 60, free.y, { steps: 3 });
+    await page.mouse.up();
+    const sl1 = await page.evaluate(() => document.getElementById("board-viewport").scrollLeft);
+    const s = await boardState(page);
+    check(sl1 < sl0 - 30 && s.selected.length === 0, `mouse drag pans (${Math.round(sl0 - sl1)}px) without selecting`);
+    await context.close();
+  }
+}
+
+async function fullGame(browser, url, name, options, difficulty, input) {
+  const { context, page, errors } = await openGame(browser, url, options, difficulty, { reduced: false });
+  const t0 = Date.now();
+  await playPairs(page, solutionFor(difficulty), { input });
+  await page.waitForSelector("#screen-results:not([hidden])", { timeout: 5000 });
+  const r = await page.evaluate(() => ({
+    title: document.getElementById("results-title").textContent,
+    moves: document.getElementById("result-moves").textContent,
+    time: document.getElementById("result-time").textContent,
+    score: document.getElementById("result-score").textContent,
+  }));
+  const pairs = solutionFor(difficulty).length;
+  check(r.moves === String(pairs) && /\d/.test(r.score) && /\d:\d\d/.test(r.time) && errors.length === 0,
+    `${name}: won ${difficulty} by ${input} in ${((Date.now() - t0) / 1000).toFixed(1)}s → ${r.title} ${r.moves} moves, ${r.time}, score ${r.score}`, errors.join("; "));
+  if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, `play-${name}-results.png`) });
+  await context.close();
+}
+
+async function main() {
+  const { server, url } = await serve();
+  const browser = await launchBrowser();
+  if (SHOT_DIR) fs.mkdirSync(SHOT_DIR, { recursive: true });
+
+  await readability(browser, url);
+  await interactions(browser, url, "phone", PHONE, "touch");
+  await interactions(browser, url, "desktop", DESKTOP, "mouse");
+  await zoomAndPan(browser, url);
+  console.log("full games");
+  await fullGame(browser, url, "phone-touch", SMALL_PHONE, "insane", "touch");
+  await fullGame(browser, url, "desktop-mouse", DESKTOP, "advanced", "mouse");
+
+  await browser.close();
+  server.close();
+  console.log(failures ? `\n${failures} problem(s) found` : "\nAll play checks passed");
+  process.exit(failures ? 1 : 0);
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });

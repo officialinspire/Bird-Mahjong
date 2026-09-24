@@ -126,3 +126,20 @@ describe("playing a game", () => {
     assert.equal(isWon(replayed), true);
   });
 });
+
+describe("shuffle edge cases", () => {
+  test("shuffle leaves the state unchanged when no deal can clear the remaining tiles", () => {
+    // Clear meadow down to a single stacked pair: the 2×2 cap on layer 2 sits
+    // over layer 1, which sits over layer 0. Keep just one cap tile and the
+    // tile directly beneath it — no deal can clear that.
+    let state = createGame("meadow", { seed: 12 });
+    const { positions, links } = getLayout("meadow");
+    const top = positions.find((p) => p.z === 2).index;
+    const below = links.coveredBy.findIndex((list, i) => positions[i].z === 1 && list.includes(top));
+    const removed = positions.map((_, i) => i !== top && i !== below);
+    const birds = state.birds.map((b, i) => (i === top || i === below ? "osprey" : b));
+    state = Object.freeze({ ...state, removed: Object.freeze(removed), birds: Object.freeze(birds) });
+    assert.equal(isStuck(state), true);
+    assert.equal(shuffleRemaining(state, 1), state);
+  });
+});

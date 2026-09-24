@@ -3,8 +3,8 @@
 A woodland tile-matching game in vanilla HTML/CSS/JS — no framework, no build
 step, no runtime CDN — hosted on GitHub Pages.
 
-**Status:** the app shell is in place (every screen and the menu flow); tile
-gameplay is not implemented yet.
+**Status:** playable. All four boards, hint / shuffle / undo, scoring and
+results work.
 
 `bird-mahjong-tiles.jpg` is the original 5 × 4 tile sheet. It is kept as-is and
 is only ever **read** by the tooling; every other image is derived from it.
@@ -16,6 +16,9 @@ bird-mahjong-tiles.jpg     original sheet (source of truth, never modified)
 index.html                 the game (app shell)
 css/app.css                palette, layout, floating-tile background
 js/app.js                  screen flow, settings, keyboard handling
+js/ui/board-view.js        DOM board: tile placement, states, zoom/pan, input
+js/ui/game-controller.js   connects js/game logic to the board, timer, messages
+js/ui/bird-names.js        display names and short on-tile labels
 js/config.js               difficulty levels
 js/settings.js             settings persisted in localStorage
 js/background.js           slowly drifting bird tiles behind the UI
@@ -24,6 +27,7 @@ data/tiles.json            tile ID ↔ name mapping (hand-maintained)
 data/crops.json            measured crop boxes (generated)
 assets/tiles/NN-<id>.png   20 individual tiles, RGBA (generated)
 assets/tiles-sm/NN-<id>.webp  120px-wide copies for the UI (generated)
+assets/tiles-md/NN-<id>.webp  full-resolution WebP for zoomed boards (generated)
 assets/contact-sheet.png   labelled overview of all crops (generated)
 tools/crop_tiles.py        cropping script
 tools/verify_crops.py      crop sanity checks
@@ -31,6 +35,7 @@ tools/requirements.txt     Python deps for the tools only
 js/game/                   pure game logic (no DOM): geometry, rules, generator, game
 tests/                     unit tests for the game logic (node --test)
 tools/verify-layout.mjs    responsive layout checks (Playwright)
+tools/verify-play.mjs      touch and mouse play checks (Playwright)
 package.json               dev-only scripts; the site itself needs no npm
 ```
 
@@ -76,13 +81,14 @@ The flow is the same as our Sudoku and Deja Vu games:
 Woods, Insane · Old Growth) → **Game** → **Results**. **How to Play** and
 **Settings** open from the menu; each has a ← Menu button.
 
-- **Game** has the header (menu, difficulty, pause), stats (tiles left, moves,
-  time), the board area and a Hint / Shuffle / Undo toolbar. The board is a
-  placeholder for now; its *Preview results screen* button opens Results.
+- **Game** has a header (☰ menu, difficulty, pause), stats (pairs left, moves,
+  time), a status line, the board and a Hint / Shuffle / Undo toolbar. The ☰
+  button pauses rather than leaving, so a stray tap can't end a game.
+- **Results** shows time, moves, hints and score once the board is cleared.
 - **Escape** pauses in-game and goes back to the menu from any other screen.
 - **Settings** (saved in `localStorage`): Motion (Match device / Reduced /
-  Full), floating background birds on/off, and bird-name labels on tiles
-  (saved now, used once gameplay exists).
+  Full), floating background birds on/off, and short bird-name labels on
+  tiles.
 - **Continue** stays disabled until there is a saved game to resume.
 - The Sudoku and Deja Vu intro video and INSPIRE logo aren't used here, because
   this repo doesn't include them. Add the files to reuse the intro step.
@@ -101,6 +107,53 @@ menu, stats sidebar beside the board). Safe-area insets are respected.
 game. When reduced motion is on, from the OS or from Settings, they stay still
 in a static scatter and screen fades are turned off. *Full* in Settings
 overrides the OS preference.
+
+## Playing on the board
+
+Tap or click a free tile, then its matching free tile, to remove both.
+
+**Tile states**, each shown by more than colour:
+
+| State | How it looks | ARIA |
+|-------|--------------|------|
+| Free | Full colour and raised; lifts under a mouse | focusable button |
+| Selected | Lifted, with a thick double ring and a ✓ badge | `aria-pressed="true"` |
+| Blocked / covered | Desaturated, with a diagonal stripe pattern and a not-allowed cursor | `aria-disabled="true"`, label ends "blocked" or "covered" |
+| Hint | Dashed ring and a "?" badge | label ends "hint" |
+
+**Feedback.** The status line (`role="status"`) names what happened, e.g.
+"Blue Jay selected — tap its twin", "That Osprey is covered by another tile",
+or "Matched a pair of Canada Geese". Matched tiles float up and fade, and a
+blocked tap gives the tile a small wiggle. With reduced motion there's no
+movement, only the status text and an instant removal. The line is a fixed
+two lines tall, so messages never move the board.
+
+**Accidental input guards**
+
+- A second tap on the same tile within 350 ms is ignored, so a double tap
+  doesn't select and then deselect.
+- After a match, taps are ignored for the length of the removal animation, so
+  a quick extra tap can't land on the tile that was underneath.
+- Taps on the board background, stats or other empty space do nothing.
+- Dragging with a mouse or swiping with a finger pans the board and never
+  selects a tile.
+- Long-press menus, text selection and double-tap zoom are turned off on the
+  board.
+- ☰ and pause both open the pause dialog; the game also pauses when the tab
+  or app is hidden.
+
+**Fit, zoom and pan.** The board is sized to fit its frame. If a layout would
+need tiles narrower than 40px (`MIN_TILE` in `js/ui/board-view.js`), it opens
+at 40px and becomes pannable, and − / Fit / + zoom controls appear. Zoom steps
+are 1.25× from "whole board" up to 110px tiles, and each step keeps the centre
+of the view in place. Panning is native scrolling inside the board frame
+(touch or wheel) or a mouse drag; the page itself never scrolls or zooms. The
+board is laid out at the zoomed size rather than CSS-scaled, so tap targets
+and images stay exact. Zoomed tiles load the full-resolution WebP through
+`srcset`.
+
+`?seed=123` in the URL replays a specific first board, which is handy for
+sharing a deal or reproducing a bug.
 
 ## Game logic
 
@@ -218,7 +271,30 @@ flow (any key to start, Escape to pause and to go back).
 npm install                      # installs Playwright (dev only)
 npx playwright install chromium  # or set CHROMIUM_PATH=/path/to/chrome
 npm run test:layout -- shots/    # optional dir for per-screen screenshots
-npm test                         # logic tests + crop checks + layout checks
+npm test                         # logic, crops, layout and play checks
+```
+
+## Checking play
+
+`tools/verify-play.mjs` plays real seeded games in Chromium, working out each
+board's solution from the same pure logic. It checks:
+
+- **Readability:** on six viewports × four difficulties, tiles are at least
+  40px wide, zoom appears only when a board can't fit, the page never
+  scrolls, and every free tile can actually be hit (not hidden under another
+  tile).
+- **Touch (390px phone) and mouse (desktop):** blocked taps don't select and
+  show the stripe pattern and ARIA state; selection shows the ✓ badge; the
+  double-tap guard works; background taps are ignored. Also mismatch, match
+  and the pairs-left counter, undo, hint and shuffle.
+- **Zoom and pan (320px phone, Insane):** Fit, +, −, a zoom maximum, a real
+  touch swipe that pans without selecting, and a mouse drag that pans without
+  selecting.
+- **Full games:** Insane won by touch taps on a 320px phone, and Advanced won
+  by mouse clicks on desktop, both ending on the results screen.
+
+```sh
+npm run test:play -- shots/      # optional dir for screenshots
 ```
 
 ## Deploying to GitHub Pages

@@ -8,7 +8,8 @@
     "test:logic": "node --test \"tests/*.test.js\"",
     "test:crops": "python3 tools/verify_crops.py",
     "test:layout": "node tools/verify-layout.mjs",
-    "test": "npm run test:logic && npm run test:crops && npm run test:layout"
+    "test:play": "node tools/verify-play.mjs",
+    "test": "npm run test:logic && npm run test:crops && npm run test:layout && npm run test:play"
   },
   "devDependencies": {
     "playwright": "^1.55.0"

@@ -16,14 +16,10 @@
 // Needs:  the `playwright` package and a Chromium build. Set CHROMIUM_PATH to
 //         use an existing binary instead of Playwright's download.
 
-import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const BASE = "/Bird-Mahjong/";
+import { launchBrowser, serve } from "./lib/serve.mjs";
+import { SEED, playPairs, solutionFor } from "./lib/play.mjs";
 const SHOT_DIR = process.argv[2] ? path.resolve(process.argv[2]) : null;
 
 const VIEWPORTS = [
@@ -42,32 +38,12 @@ const SCREENS = [
   { name: "start", steps: [], fits: true },
   { name: "menu", steps: ["#screen-start"] },
   { name: "difficulty", steps: ["#screen-start", "[data-go=difficulty]"] },
-  { name: "game", steps: ["#screen-start", "[data-go=difficulty]", "[data-difficulty=advanced]"] },
+  { name: "game", steps: ["#screen-start", "[data-go=difficulty]", "[data-difficulty=advanced]"], fits: true },
   { name: "pause", screen: "game", steps: ["#screen-start", "[data-go=difficulty]", "[data-difficulty=easy]", "#btn-pause"], root: "#pause-dialog" },
   { name: "help", steps: ["#screen-start", "#screen-menu [data-go=help]"] },
   { name: "settings", steps: ["#screen-start", "#screen-menu [data-go=settings]"] },
-  { name: "results", steps: ["#screen-start", "[data-go=difficulty]", "[data-difficulty=easy]", "#btn-preview-results"] },
+  { name: "results", steps: ["#screen-start", "[data-go=difficulty]", "[data-difficulty=easy]", (page) => playPairs(page, solutionFor("easy"))] },
 ];
-
-const TYPES = {
-  ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json",
-  ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
-};
-
-function serve() {
-  const server = http.createServer((req, res) => {
-    const url = new URL(req.url, "http://x");
-    if (!url.pathname.startsWith(BASE)) { res.writeHead(404).end(); return; }
-    let rel = decodeURIComponent(url.pathname.slice(BASE.length)) || "index.html";
-    const file = path.join(ROOT, rel);
-    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      res.writeHead(404).end(); return;
-    }
-    res.writeHead(200, { "content-type": TYPES[path.extname(file)] || "application/octet-stream" });
-    fs.createReadStream(file).pipe(res);
-  });
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
-}
 
 async function auditScreen(page, rootSelector) {
   return page.evaluate(async (rootSelector) => {
@@ -77,7 +53,9 @@ async function auditScreen(page, rootSelector) {
       problems.push(`horizontal overflow: scrollWidth ${document.documentElement.scrollWidth} > ${vw}`);
     }
     const root = document.querySelector(rootSelector);
-    const controls = [...root.querySelectorAll("button, a[href], input, .segmented span")]
+    // Board tiles are checked separately (tools/verify-play.mjs): covered
+    // tiles are hidden under others by design.
+    const controls = [...root.querySelectorAll("button:not(.tile), a[href], input, .segmented span")]
       .filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== "hidden")
       .filter((el) => !(el.matches("input") && el.closest(".segmented")));
     for (const el of controls) {
@@ -101,10 +79,8 @@ async function auditScreen(page, rootSelector) {
 }
 
 async function main() {
-  const server = await serve();
-  const origin = `http://127.0.0.1:${server.address().port}`;
-  const url = `${origin}${BASE}`;
-  const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+  const { server, origin, url } = await serve();
+  const browser = await launchBrowser();
   if (SHOT_DIR) fs.mkdirSync(SHOT_DIR, { recursive: true });
 
   let failures = 0;
@@ -126,8 +102,12 @@ async function main() {
       page.on("response", (r) => r.status() >= 400 && errors.push(`${r.status()} ${r.url()}`));
       page.on("request", (r) => !r.url().startsWith(origin) && !r.url().startsWith("data:") && errors.push(`external request: ${r.url()}`));
 
-      await page.goto(url, { waitUntil: "networkidle" });
-      for (const step of screen.steps) await page.click(step);
+      await page.goto(`${url}?seed=${SEED}`, { waitUntil: "networkidle" });
+      for (const step of screen.steps) {
+        if (typeof step === "function") await step(page);
+        else await page.click(step);
+      }
+      if (screen.name === "results") await page.waitForSelector("#screen-results:not([hidden])");
       const expected = screen.screen || screen.name;
       const active = await page.evaluate(() => document.body.dataset.screen);
       if (active !== expected) fail(`${screen.name}: expected screen "${expected}", got "${active}"`);
