@@ -320,7 +320,7 @@ html[data-motion="reduce"] * { transition: none !important; }
 .difficulty-option:active { transform: scale(0.99); }
 .difficulty-option img { grid-row: span 3; width: 44px; }
 .difficulty-option strong { font-size: 1.15rem; color: var(--leaf-dark); }
-.difficulty-option strong small { display: block; font-weight: 700; font-size: 0.72rem; color: var(--sky-ink); letter-spacing: 0.12em; text-transform: uppercase; }
+.difficulty-option strong small { display: block; font-weight: 700; font-size: 0.75rem; color: var(--sky-ink); letter-spacing: 0.12em; text-transform: uppercase; }
 .difficulty-option span { font-size: 0.9rem; color: var(--bark-soft); }
 
 /* How to Play */
@@ -448,7 +448,7 @@ input[role="switch"]:checked::after { transform: translateX(22px); }
   text-align: center;
 }
 .game-stats dt, .results-metrics dt {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -517,6 +517,11 @@ input[role="switch"]:checked::after { transform: translateX(22px); }
   position: relative;
   flex: none;
   margin: auto;
+  /* Transient decorations (lifted tiles, "+points" tags) must never grow the
+     scroll area: a brief scrollbar would make the whole board jump. The
+     board's padding leaves room for the lift and the focus ring. */
+  overflow: hidden;
+  overflow: clip;
 }
 
 /* ---------- Tiles ---------- */
@@ -795,19 +800,28 @@ html[data-tile-labels="on"] .tile-label { display: block; }
   .game-stats dd { font-size: 1.6rem; }
 }
 
+/* Landscape phones: every pixel of height counts. Tools sit in a 2-column
+   grid (zoom on its own row) so the whole side column fits in ~300px. */
 @media (orientation: landscape) and (max-height: 560px) {
   .screen--game { gap: 6px; padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
-  .game-title h1 { font-size: 1.1rem; }
+  .game-title h1 { font-size: 1.05rem; }
+  .game-title p { font-size: 0.75rem; }
+  .game-layout { grid-template-columns: minmax(176px, 220px) minmax(0, 1fr); gap: 6px 12px; }
+  .game-side { gap: 8px; }
   .game-stats { gap: 4px; }
-  .game-stats div { padding: 4px 10px; }
+  .game-stats div { padding: 3px 10px; }
   .game-stats dd { font-size: 1rem; }
-  .game-tools { gap: 6px; }
+  .game-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .game-tools .btn--small { padding-inline: 0.4em; font-size: 0.9rem; }
+  .zoom-controls { grid-column: 1 / -1; }
+  .game-message { height: 2.6em; font-size: 0.85rem; }
 }
 
 /* Narrow phones: keep header and stats to one line each so the board keeps its height. */
 .game-title p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 380px) {
-  .game-stats dt { font-size: 0.62rem; letter-spacing: 0.05em; white-space: nowrap; }
+  .game-stats dt { letter-spacing: 0.02em; white-space: nowrap; }
+  .game-stats div { padding-inline: 6px; }
   .game-stats dd { font-size: 1.1rem; }
   .game-title h1 { font-size: 1.15rem; }
   .game-tools { gap: 5px; }
@@ -1012,3 +1026,34 @@ kbd {
   text-align: center;
   color: var(--bark);
 }
+
+/* ---------- Install and updates ---------- */
+
+.update-banner {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(calc(100% - 24px), 440px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  border: 2px solid var(--rim);
+  box-shadow: 0 12px 36px rgb(47 42 32 / 0.28);
+  color: var(--bark);
+  font-weight: 600;
+}
+.update-banner[hidden] { display: none; }
+.update-actions { display: flex; gap: 8px; }
+#btn-install[hidden] { display: none; }
+
+/* During play, a downward swipe must not trigger Android's pull-to-refresh
+   (or iOS rubber-banding) and yank the board. */
+html:has(body[data-screen="game"]),
+body[data-screen="game"] { overscroll-behavior: none; }

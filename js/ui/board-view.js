@@ -34,6 +34,7 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
   let extents = null;
   let suppressClickUntil = 0;
   let roving = -1;           // the one free tile in the Tab order (roving tabindex)
+  let zoomedOutByPlayer = false; // player chose − / Fit below the readable size
 
   // ---------- Geometry ----------
 
@@ -68,6 +69,8 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
   }
 
   function place() {
+    // A "+points" tag from the last match would sit at a stale position.
+    surface.querySelectorAll(".score-float").forEach((tag) => tag.remove());
     const w = tileW;
     const h = w * TILE_RATIO;
     const lift = extents.maxZ * DEPTH * w;
@@ -120,6 +123,7 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
     if (direction === "in") setTileWidth(tileW * ZOOM_STEP);
     else if (direction === "out") setTileWidth(tileW / ZOOM_STEP);
     else setTileWidth(fitW);
+    zoomedOutByPlayer = tileW < MIN_TILE - 0.5;
   }
 
   /**
@@ -129,13 +133,35 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
    */
   function relayout({ resetZoom = false } = {}) {
     if (!layout || viewport.clientWidth === 0) return; // hidden screen
-    const ratio = tileW / fitW;
+    const wasFit = tileW <= fitW + 0.5;
+    // Remember which point of the board is in the middle of the view, so a
+    // resize or rotation doesn't make the board jump.
+    const before = extents && tileW ? boardSize(tileW) : null;
+    const cx = before ? (viewport.scrollLeft + viewport.clientWidth / 2) / before.width : 0.5;
+    const cy = before ? (viewport.scrollTop + viewport.clientHeight / 2) / before.height : 0.5;
     fitW = computeFit();
-    if (!canZoom()) tileW = fitW;
-    else if (resetZoom) tileW = MIN_TILE;
-    else tileW = Math.max(fitW, Math.min(maxTile(), fitW * ratio));
+    if (resetZoom) zoomedOutByPlayer = false;
+    if (!canZoom()) {
+      tileW = fitW;
+    } else if (resetZoom || (wasFit && !zoomedOutByPlayer)) {
+      // Newly too big to fit (e.g. rotated to portrait): readable size.
+      tileW = MIN_TILE;
+    } else {
+      // Keep the player's tile size; never below readable unless they chose it.
+      const floor = zoomedOutByPlayer ? fitW : Math.max(fitW, MIN_TILE);
+      tileW = Math.max(floor, Math.min(maxTile(), tileW));
+    }
     place();
-    if (resetZoom) centerOnTopLayer();
+    if (resetZoom) {
+      centerOnTopLayer();
+      return;
+    }
+    const after = boardSize(tileW);
+    viewport.scrollLeft = cx * after.width - viewport.clientWidth / 2;
+    viewport.scrollTop = cy * after.height - viewport.clientHeight / 2;
+    // The tile the player is working with stays in view.
+    const keep = surface.querySelector(".tile.is-selected") || (surface.contains(document.activeElement) ? document.activeElement : null);
+    keep?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   /** Start zoomed boards centred on the tallest stack, where play begins. */

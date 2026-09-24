@@ -13,24 +13,40 @@ export const BASE = "/Bird-Mahjong/";
 const TYPES = {
   ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript",
   ".json": "application/json", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
+  ".webmanifest": "application/manifest+json",
 };
 
-/** Start the server; resolves to { server, origin, url }. */
+/**
+ * Start the server; resolves to { server, origin, url, overrides, log }.
+ * `overrides` maps a repo-relative path to replacement content, so tests can
+ * publish a "new version" of a file mid-run. `log` records every request as
+ * { path, status }.
+ */
 export function serve() {
+  const overrides = new Map();
+  const log = [];
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://x");
-    if (!url.pathname.startsWith(BASE)) { res.writeHead(404).end(); return; }
+    const end = (status) => { log.push({ path: url.pathname, status }); res.writeHead(status).end(); };
+    if (!url.pathname.startsWith(BASE)) { end(404); return; }
     const rel = decodeURIComponent(url.pathname.slice(BASE.length)) || "index.html";
+    if (overrides.has(rel)) {
+      log.push({ path: url.pathname, status: 200 });
+      res.writeHead(200, { "content-type": TYPES[path.extname(rel)] || "application/octet-stream" });
+      res.end(overrides.get(rel));
+      return;
+    }
     const file = path.join(ROOT, rel);
     if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      res.writeHead(404).end(); return;
+      end(404); return;
     }
+    log.push({ path: url.pathname, status: 200 });
     res.writeHead(200, { "content-type": TYPES[path.extname(file)] || "application/octet-stream" });
     fs.createReadStream(file).pipe(res);
   });
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => {
     const origin = `http://127.0.0.1:${server.address().port}`;
-    resolve({ server, origin, url: `${origin}${BASE}` });
+    resolve({ server, origin, url: `${origin}${BASE}`, overrides, log });
   }));
 }
 
