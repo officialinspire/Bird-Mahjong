@@ -1,0 +1,285 @@
+{
+  "source": "bird-mahjong-tiles.jpg",
+  "tiles": [
+    {
+      "index": 1,
+      "id": "bald-eagle",
+      "name": "Bald Eagle",
+      "row": 1,
+      "col": 1,
+      "file": "assets/tiles/01-bald-eagle.png",
+      "box": {
+        "x": 89,
+        "y": 6,
+        "width": 191,
+        "height": 265
+      }
+    },
+    {
+      "index": 2,
+      "id": "osprey",
+      "name": "Osprey",
+      "row": 1,
+      "col": 2,
+      "file": "assets/tiles/02-osprey.png",
+      "box": {
+        "x": 335,
+        "y": 4,
+        "width": 207,
+        "height": 266
+      }
+    },
+    {
+      "index": 3,
+      "id": "red-tailed-hawk",
+      "name": "Red-tailed Hawk",
+      "row": 1,
+      "col": 3,
+      "file": "assets/tiles/03-red-tailed-hawk.png",
+      "box": {
+        "x": 597,
+        "y": 4,
+        "width": 208,
+        "height": 268
+      }
+    },
+    {
+      "index": 4,
+      "id": "peregrine-falcon",
+      "name": "Peregrine Falcon",
+      "row": 1,
+      "col": 4,
+      "file": "assets/tiles/04-peregrine-falcon.png",
+      "box": {
+        "x": 859,
+        "y": 2,
+        "width": 209,
+        "height": 271
+      }
+    },
+    {
+      "index": 5,
+      "id": "barred-owl",
+      "name": "Barred Owl",
+      "row": 1,
+      "col": 5,
+      "file": "assets/tiles/05-barred-owl.png",
+      "box": {
+        "x": 1122,
+        "y": 2,
+        "width": 210,
+        "height": 271
+      }
+    },
+    {
+      "index": 6,
+      "id": "great-horned-owl",
+      "name": "Great Horned Owl",
+      "row": 2,
+      "col": 1,
+      "file": "assets/tiles/06-great-horned-owl.png",
+      "box": {
+        "x": 79,
+        "y": 278,
+        "width": 207,
+        "height": 267
+      }
+    },
+    {
+      "index": 7,
+      "id": "american-crow",
+      "name": "American Crow",
+      "row": 2,
+      "col": 2,
+      "file": "assets/tiles/07-american-crow.png",
+      "box": {
+        "x": 334,
+        "y": 278,
+        "width": 209,
+        "height": 269
+      }
+    },
+    {
+      "index": 8,
+      "id": "common-raven",
+      "name": "Common Raven",
+      "row": 2,
+      "col": 3,
+      "file": "assets/tiles/08-common-raven.png",
+      "box": {
+        "x": 595,
+        "y": 279,
+        "width": 211,
+        "height": 269
+      }
+    },
+    {
+      "index": 9,
+      "id": "blue-jay",
+      "name": "Blue Jay",
+      "row": 2,
+      "col": 4,
+      "file": "assets/tiles/09-blue-jay.png",
+      "box": {
+        "x": 858,
+        "y": 280,
+        "width": 209,
+        "height": 267
+      }
+    },
+    {
+      "index": 10,
+      "id": "northern-cardinal",
+      "name": "Northern Cardinal",
+      "row": 2,
+      "col": 5,
+      "file": "assets/tiles/10-northern-cardinal.png",
+      "box": {
+        "x": 1121,
+        "y": 279,
+        "width": 211,
+        "height": 267
+      }
+    },
+    {
+      "index": 11,
+      "id": "american-robin",
+      "name": "American Robin",
+      "row": 3,
+      "col": 1,
+      "file": "assets/tiles/11-american-robin.png",
+      "box": {
+        "x": 75,
+        "y": 551,
+        "width": 213,
+        "height": 266
+      }
+    },
+    {
+      "index": 12,
+      "id": "black-capped-chickadee",
+      "name": "Black-capped Chickadee",
+      "row": 3,
+      "col": 2,
+      "file": "assets/tiles/12-black-capped-chickadee.png",
+      "box": {
+        "x": 335,
+        "y": 550,
+        "width": 210,
+        "height": 266
+      }
+    },
+    {
+      "index": 13,
+      "id": "tufted-titmouse",
+      "name": "Tufted Titmouse",
+      "row": 3,
+      "col": 3,
+      "file": "assets/tiles/13-tufted-titmouse.png",
+      "box": {
+        "x": 595,
+        "y": 550,
+        "width": 211,
+        "height": 267
+      }
+    },
+    {
+      "index": 14,
+      "id": "pileated-woodpecker",
+      "name": "Pileated Woodpecker",
+      "row": 3,
+      "col": 4,
+      "file": "assets/tiles/14-pileated-woodpecker.png",
+      "box": {
+        "x": 856,
+        "y": 550,
+        "width": 212,
+        "height": 268
+      }
+    },
+    {
+      "index": 15,
+      "id": "belted-kingfisher",
+      "name": "Belted Kingfisher",
+      "row": 3,
+      "col": 5,
+      "file": "assets/tiles/15-belted-kingfisher.png",
+      "box": {
+        "x": 1120,
+        "y": 551,
+        "width": 212,
+        "height": 265
+      }
+    },
+    {
+      "index": 16,
+      "id": "great-blue-heron",
+      "name": "Great Blue Heron",
+      "row": 4,
+      "col": 1,
+      "file": "assets/tiles/16-great-blue-heron.png",
+      "box": {
+        "x": 74,
+        "y": 822,
+        "width": 213,
+        "height": 270
+      }
+    },
+    {
+      "index": 17,
+      "id": "wood-duck",
+      "name": "Wood Duck",
+      "row": 4,
+      "col": 2,
+      "file": "assets/tiles/17-wood-duck.png",
+      "box": {
+        "x": 334,
+        "y": 822,
+        "width": 209,
+        "height": 270
+      }
+    },
+    {
+      "index": 18,
+      "id": "wild-turkey",
+      "name": "Wild Turkey",
+      "row": 4,
+      "col": 3,
+      "file": "assets/tiles/18-wild-turkey.png",
+      "box": {
+        "x": 595,
+        "y": 821,
+        "width": 212,
+        "height": 271
+      }
+    },
+    {
+      "index": 19,
+      "id": "canada-goose",
+      "name": "Canada Goose",
+      "row": 4,
+      "col": 4,
+      "file": "assets/tiles/19-canada-goose.png",
+      "box": {
+        "x": 857,
+        "y": 824,
+        "width": 211,
+        "height": 270
+      }
+    },
+    {
+      "index": 20,
+      "id": "ruby-throated-hummingbird",
+      "name": "Ruby-throated Hummingbird",
+      "row": 4,
+      "col": 5,
+      "file": "assets/tiles/20-ruby-throated-hummingbird.png",
+      "box": {
+        "x": 1119,
+        "y": 821,
+        "width": 213,
+        "height": 272
+      }
+    }
+  ]
+}
