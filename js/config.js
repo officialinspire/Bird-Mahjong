@@ -26,11 +26,24 @@ export function difficultyById(id) {
  *   game  gameplay
  * Effects listed under `sfx` are decoded whole (keep them short). Anything
  * missing, unsupported or refused falls back to the synthesized sounds.
+ *
+ * `calls` maps exact bird IDs (js/game/birds.js) to the approved, credited
+ * bird-call clips (assets/audio/CREDITS.md). Clearing a pair of one of these
+ * birds plays its call instead of the synthesized match chirp; every other
+ * bird keeps the chirp.
+ *
  * tools/build-sw.mjs precaches root *.mp3 files and assets/audio/ for offline
  * play (run `npm run build:sw` after changing them).
  */
 export const AUDIO_FILES = Object.freeze({
   sfx: Object.freeze({}),
+  calls: Object.freeze({
+    "american-crow": "assets/audio/american-crow.mp3",
+    "common-raven": "assets/audio/common-raven.mp3",
+    "bald-eagle": "assets/audio/bald-eagle.mp3",
+    "northern-cardinal": "assets/audio/northern-cardinal.mp3",
+    "wood-duck": "assets/audio/wood-duck.mp3",
+  }),
   music: Object.freeze({
     menu: "Bird Mahjong - Gentle Canopy.mp3",
     game: "Bird Mahjong - Forest Breeze.mp3",

@@ -9,6 +9,7 @@ class Param {
   constructor(value) { this.value = value; this.events = []; }
   setValueAtTime(v, t) { this.value = v; this.events.push(["set", v, t]); }
   exponentialRampToValueAtTime(v, t) { this.events.push(["ramp", v, t]); }
+  linearRampToValueAtTime(v, t) { this.events.push(["linear", v, t]); }
   cancelScheduledValues(t) { this.events.push(["cancel", t]); }
 }
 class Node {
@@ -74,15 +75,17 @@ function sourcesOn(ctx, busGain) {
 }
 
 /**
- * The engine's buses. unlock() creates master, then effects, then music, so
- * the first three gains are those; both buses feed the master.
+ * The engine's buses. unlock() creates master, then effects, then music, then
+ * the music "duck" (which dips music under bird calls), so the first four
+ * gains are those. Effects feed the master; music feeds it through the duck.
  */
 function findBuses(ctx) {
-  const [master, sfx, music] = ctx.gains;
+  const [master, sfx, music, duck] = ctx.gains;
   assert.equal(master.out, ctx.destination);
   assert.equal(sfx.out, master);
-  assert.equal(music.out, master);
-  return { master, sfx, music, feeders: [sfx, music] };
+  assert.equal(music.out, duck);
+  assert.equal(duck.out, master);
+  return { master, sfx, music, duck, feeders: [sfx, music] };
 }
 
 const flush = () => new Promise((r) => setImmediate(r));

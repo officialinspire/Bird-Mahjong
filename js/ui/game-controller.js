@@ -207,8 +207,9 @@ export function createGameController({ elements, reducedMotion, onWin, onChange 
         view.animateRemoval([previous, index], reducedMotion() ? 0 : REMOVE_MS);
         if (!reducedMotion()) view.floatScore(index, `+${state.gains.at(-1).points}`);
         say(matchMessage(name), "good");
-        // A slightly different chirp per bird keeps repeated matches from droning.
-        play("match", { pitch: 0.9 + (BIRD_IDS.indexOf(state.birds[index]) % 5) * 0.05 });
+        // The bird's own call if it has an approved clip, otherwise a chirp
+        // pitched slightly per bird so repeated matches don't drone.
+        play("match", { bird: state.birds[index], pitch: 0.9 + (BIRD_IDS.indexOf(state.birds[index]) % 5) * 0.05 });
         break;
       default:
         return;

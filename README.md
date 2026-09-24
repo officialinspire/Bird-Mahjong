@@ -99,6 +99,7 @@ tools/verify-save.mjs      autosave / Continue checks with real reloads (Playwri
 tools/verify-polish.mjs    keyboard, labels, sound, animation, contrast checks (Playwright)
 tools/verify-offline.mjs   offline, install and update checks (Playwright)
 tools/verify-music.mjs     recorded music transitions with the real MP3s (Playwright)
+tools/verify-calls.mjs     bird calls on cleared pairs with the real clips (Playwright)
 tools/make_bird_calls.py   rebuilds the bird-call clips in assets/audio/ (see CREDITS.md)
 tools/build-sw.mjs         writes sw.js's precache list + content-hash VERSION
 tools/make_icons.py        builds icons/ from the cropped tiles
@@ -247,8 +248,9 @@ Settings. Sound effects are synthesized with Web Audio in `js/ui/sound.js`.
 Music uses the two recorded tracks in the repo root, played by
 `js/ui/music.js`, with a synthesized ambience as the fallback.
 
-- **Sound effects:** short two-note chirps for matches (pitched slightly
-  differently per bird), a soft tick to select, a low tap for a blocked or
+- **Sound effects:** a match plays that bird's real call when it has one (see
+  *Bird calls* below), otherwise a short two-note chirp (pitched slightly
+  differently per bird). Also a soft tick to select, a low tap for a blocked or
   mismatched tile, rising notes for a hint, a flutter for a shuffle, and a
   four-note chime with a chirp for a clear. Turning effects on, or moving
   their volume, plays a sample.
@@ -294,8 +296,22 @@ Music uses the two recorded tracks in the repo root, played by
 - **Bird calls:** `assets/audio/` holds five short real calls, named by tile
   ID: `american-crow`, `common-raven`, `bald-eagle`, `northern-cardinal` and
   `wood-duck` (1–2.5 s each, 8–18 KB). They come from Wikimedia Commons and
-  are public domain, except the Wood Duck, which is CC BY-SA 3.0. The game
-  doesn't play them yet.
+  are public domain, except the Wood Duck, which is CC BY-SA 3.0.
+  - **Mapping:** `AUDIO_FILES.calls` in `js/config.js` maps each exact bird ID
+    to its clip.
+  - **One sound per pair:** clearing a pair of one of these birds plays its
+    call quietly over the music instead of the match chirp, never both. Every
+    other bird keeps the chirp.
+  - **No chorus:** only one call sounds at a time. A new match fades the
+    previous call out within 0.08 s, so quick matches never pile up.
+  - **Ducking:** the music dips gently (about −6 dB) under a call and comes
+    back over 0.8 s. This is a separate gain, so the Music volume setting
+    isn't changed.
+  - **Settings:** calls play on the Sound effects channel, so its switch
+    (which cuts a call at once) and its volume apply.
+  - **Loading:** clips are fetched and decoded after the first gesture. A
+    clip that is missing, fails to load or can't be decoded falls back to the
+    chirp without an error, as does a match made before decoding finishes.
   - `assets/audio/CREDITS.md` lists each clip's source page, creator, license
     and edits.
   - `python3 tools/make_bird_calls.py` rebuilds them from the sources. It
@@ -683,6 +699,17 @@ npm run test:save
   - refused `play()` (retried on a gesture, fallback on other errors, an
     AbortError ignored), Music off, and a hidden tab
 
+  `tests/bird-calls.test.js` checks the bird calls:
+  - the mapping: exactly the five approved clips, keyed by real bird IDs,
+    each file present, small, credited and precached
+  - one sound per pair: a bird's own call and no chirp, or the chirp and no
+    call
+  - no chorus when matches come fast, and the music dip and its recovery
+  - Sound effects off (nothing plays, a call in progress is cut, the music
+    dip is released) and its volume
+  - fallback for a 404, a network error, undecodable data, a throwing fetch,
+    a failing `start()`, or a match before decoding finishes
+
   `tests/settings.test.js` covers defaults, independence, clamping, per-field
   fallback, migration of old saves, broken storage, and that every saved
   setting has a control.
@@ -748,6 +775,24 @@ Chromium and records every `<audio>` element and `play()` call. It checks:
   `NotSupportedError` falls back to the synthesized ambience.
 - **Offline:** both tracks are cached. They play offline and can seek, since
   the service worker answers range requests from the cache.
+
+## Checking bird calls
+
+`tools/verify-calls.mjs` (`npm run test:calls`) uses real Chromium and the
+real clips. It plays a whole seeded Hard board, whose 30 pairs include all
+five birds with clips, and checks:
+
+- **Loading:** nothing is fetched before the first tap. After it, all five
+  clips load.
+- **One sound per pair:** each pair makes exactly one match sound, either its
+  bird's own clip with no chirp or the chirp with no call.
+- **No chorus:** rapid matches never have more than two calls sounding, and
+  two only during the quick handoff.
+- **Ducking:** the music dips under every call.
+- **Sound effects off:** matches make no sound at all, and switching it off
+  during a call cuts the call at once.
+- **Broken clips:** a 404, garbage data or an aborted download falls back to
+  the chirp, once per pair, with no page errors.
 
 ## Release sweep
 

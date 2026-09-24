@@ -1,6 +1,6 @@
 // Lightweight, optional audio: soft birdlike chirps and quiet UI ticks
 // (Sound effects), and a calm woodland ambience (Music), all synthesized with
-// Web Audio, so the game ships with no audio files.
+// Web Audio. Recorded music and bird calls are optional extras (below).
 //
 // Autoplay rules and courtesy both say: no sound before the player does
 // something. The AudioContext is created only inside a user gesture (see
@@ -19,6 +19,12 @@
 //     streamed <audio> elements routed into the music bus, seamless loops,
 //     1s crossfades between scenes.
 //   * Short effects are fetched and decoded in the background.
+//   * Bird calls (`files.calls`, keyed by bird ID) are decoded the same way.
+//     A cleared pair of that bird plays its call, quietly, instead of the
+//     match chirp: one sound per pair, never both. Only one call sounds at a
+//     time (a new one fades the last out quickly, so fast matches can't pile
+//     up into a chorus), and the music dips gently under it. Calls play on
+//     the effects bus, so Sound effects and its volume apply to them.
 // Anything missing, unsupported or refused falls back to the synthesized
 // version, which is always available.
 
@@ -29,6 +35,11 @@ export const MUSIC_SCENES = ["menu", "game"];
 
 const SFX_LEVEL = 0.5;    // bus gain at 100% effects volume
 const MUSIC_LEVEL = 0.35; // bus gain at 100% music volume (music sits under effects)
+const CALL_LEVEL = 0.6;   // bird calls, relative to the effects bus (quiet)
+const CALL_HANDOFF = 0.08; // s: a new call fades the previous one out this fast
+const DUCK_LEVEL = 0.5;   // music dips to this (about -6 dB) under a call
+const DUCK_IN = 0.15;     // s
+const DUCK_OUT = 0.8;     // s, after the call ends
 const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
 
 /**
@@ -55,9 +66,11 @@ export function createSound({
   let master = null;
   let sfxBus = null;
   let musicBus = null;
+  let duck = null;               // music bus -> duck -> master (dips under calls)
+  let call = null;               // the bird call sounding now: { src, gain }
   const liveSfx = new Set();     // effect sources still sounding
   const liveMusic = new Set();   // music sources still sounding
-  const buffers = { sfx: {} };
+  const buffers = { sfx: {}, calls: {} };
   let loadStarted = false;
   const tracks = files.music || {};
   let recorded = null;           // music controller, created on the first gesture
@@ -82,8 +95,10 @@ export function createSound({
         master.connect(ctx.destination);
         sfxBus = ctx.createGain();
         musicBus = ctx.createGain();
+        duck = ctx.createGain();
         sfxBus.connect(master);
-        musicBus.connect(master);
+        musicBus.connect(duck);
+        duck.connect(master);
         master.gain.value = 1;
         if (Object.keys(tracks).length) {
           recorded = createMusic({
@@ -135,7 +150,7 @@ export function createSound({
     const musicOn = !!musicEnabled();
     setBus(sfxBus, sfxOn ? SFX_LEVEL * clamp01(volume()) : 0);
     setBus(musicBus, musicOn ? MUSIC_LEVEL * clamp01(musicVolume()) : 0);
-    if (!sfxOn) stopAll(liveSfx);
+    if (!sfxOn) { stopAll(liveSfx); endCall(); }
     if (!musicOn) stopMusic();
     else if (scene && playingScene !== scene) startMusic(scene);
     if (!sfxOn && !musicOn) {
@@ -151,13 +166,71 @@ export function createSound({
   function loadFiles() {
     if (loadStarted || !fetchFile) return;
     loadStarted = true;
-    for (const [name, url] of Object.entries(files.sfx || {})) {
-      fetchFile(url)
-        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
-        .then((data) => ctx.decodeAudioData(data))
-        .then((buffer) => { buffers.sfx[name] = buffer; })
-        .catch(() => { /* keep the synthesized fallback */ });
+    for (const kind of ["sfx", "calls"]) {
+      for (const [name, url] of Object.entries(files[kind] || {})) {
+        let pending;
+        try {
+          pending = fetchFile(url)
+            .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
+            .then((data) => ctx.decodeAudioData(data))
+            .then((buffer) => { if (buffer) buffers[kind][name] = buffer; });
+        } catch {
+          continue; // fetch itself threw: keep the synthesized fallback
+        }
+        pending.catch(() => { /* missing or undecodable: keep the synthesized fallback */ });
+      }
     }
+  }
+
+  // ---------- Bird calls ----------
+
+  /** Ramp a gain param from its current value, dropping anything scheduled. */
+  function rampFromNow(param, to, seconds, at = ctx.currentTime) {
+    if (typeof param.cancelAndHoldAtTime === "function") param.cancelAndHoldAtTime(at);
+    else { const v = param.value; param.cancelScheduledValues(at); param.setValueAtTime(v, at); }
+    param.linearRampToValueAtTime(to, at + seconds);
+  }
+
+  /** Play a bird's call; false if there's no decoded clip (caller chirps). */
+  function playCall(bird) {
+    const buffer = bird && buffers.calls[bird];
+    if (!buffer) return false;
+    const now = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    src.buffer = buffer;
+    gain.gain.value = CALL_LEVEL;
+    src.connect(gain);
+    gain.connect(sfxBus);
+    src.start(now); // if this throws, nothing sounded and the chirp is used
+    // Only one call at a time: fade the previous one out quickly.
+    if (call) {
+      const old = call;
+      rampFromNow(old.gain.gain, 0.0001, CALL_HANDOFF, now);
+      try { old.src.stop(now + CALL_HANDOFF + 0.02); } catch { /* already stopped */ }
+    }
+    const current = { src, gain };
+    call = current;
+    liveSfx.add(src);
+    src.onended = () => {
+      liveSfx.delete(src);
+      if (call === current) call = null;
+    };
+    // Dip the music under the call, then bring it back.
+    const length = Number(buffer.duration) || 1.5;
+    rampFromNow(duck.gain, DUCK_LEVEL, DUCK_IN, now);
+    duck.gain.setValueAtTime(DUCK_LEVEL, now + Math.max(DUCK_IN, length));
+    duck.gain.linearRampToValueAtTime(1, now + Math.max(DUCK_IN, length) + DUCK_OUT);
+    return true;
+  }
+
+  /** Sound effects off: no call, and the music is not left dipped. */
+  function endCall() {
+    call = null;
+    if (!duck) return;
+    const now = ctx.currentTime;
+    duck.gain.cancelScheduledValues(now);
+    duck.gain.setValueAtTime(1, now);
   }
 
   // ---------- Sound effects (synthesized) ----------
@@ -221,6 +294,11 @@ export function createSound({
     if (!enabled() || !ctx || !SOUNDS[name]) return false;
     try {
       if (ctx.state === "suspended") ctx.resume();
+      if (name === "match" && opts.bird) {
+        let called = false;
+        try { called = playCall(opts.bird); } catch { called = false; }
+        if (called) return true; // the call replaces the chirp: never both
+      }
       const clip = buffers.sfx[name];
       if (clip) playBuffer(clip, sfxBus, liveSfx, { rate: opts.pitch || 1 });
       else SOUNDS[name](opts);
@@ -349,5 +427,7 @@ export function createSound({
     get recorded() { return recorded ? recorded.state : null; },
     /** For tests: how many sources are sounding on each bus. */
     get live() { return { sfx: liveSfx.size, music: liveMusic.size }; },
+    /** For tests: which bird calls are decoded and ready. */
+    get calls() { return Object.keys(buffers.calls); },
   };
 }
