@@ -17,7 +17,7 @@ import { createGameController } from "./ui/game-controller.js";
 import { createSound } from "./ui/sound.js";
 import { createIntro } from "./ui/intro.js";
 import { warmTiles } from "./ui/tile-images.js";
-import { createBoardTracker, createPlayerStats } from "./player-stats.js";
+import { createBoardTracker, createPlayerStats, localDay } from "./player-stats.js";
 import { createToaster, renderEarned, renderStats } from "./ui/achievements-view.js";
 import { setupPwa } from "./pwa.js";
 
@@ -47,7 +47,9 @@ function showScreen(name) {
   const next = document.getElementById(`screen-${name}`);
   if (!next) return;
   if (name === "difficulty") renderDifficulties(); // fresh best scores
-  if (name === "stats") renderStats($("#stats-body"), { stats: player.stats(), unlocked: player.unlocked(), records: (id) => bests.get(id) });
+  if (name === "stats") {
+    renderStats($("#stats-body"), { stats: player.stats(), unlocked: player.unlocked(), records: (id) => bests.get(id), today: localDay(new Date()) });
+  }
   const leaving = state.screen;
   state.screen = name; // set first: closing the pause dialog checks it
   for (const dialog of ["#pause-dialog", "#new-game-dialog"]) if ($(dialog).open) $(dialog).close();
@@ -300,12 +302,18 @@ function recordWin(summary) {
   recorded = { summary, record: bests.record(state.difficulty, summary) };
   try {
     // The results screen shows these (with any earned during the board), so no toast.
+    // Dates and hours are the player's own local calendar and clock.
+    const now = new Date();
     earn(player.recordWin({
       ...summary,
       difficultyId: state.difficulty,
       undos: tracker.undos,
+      crowRavenMixups: tracker.crowRavenMixups,
       continued: board.continued,
-      hour: new Date().getHours(),
+      hour: now.getHours(),
+      date: localDay(now),
+      weekday: now.getDay(),
+      at: now.getTime(),
     }), { toast: false });
   } catch (error) {
     console.warn("Couldn't record achievements:", error);

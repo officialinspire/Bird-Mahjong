@@ -293,15 +293,28 @@ sharing a deal or reproducing a bug.
 
 **Stats & Achievements** on the menu shows lifetime totals (boards and pairs
 cleared, best streak, birds seen, layouts cleared), each difficulty's record
-(clears, best score, fastest time), and 35 achievements in five groups:
+(clears, best score, fastest time), day streak, days played and time spent
+birding, and 83 achievements in nine groups. Jump links at the top of the
+list go straight to each group.
 
 | Group | Achievements |
 |-------|--------------|
 | Boards cleared | First Flight (1), Fledgling (10), Birder (25), Flock Leader (50), Century Flyer (100) |
 | Woodland firsts (trophies) | Meadowlands Mastered, Woodland Wanderer, Old Growth Ranger, Into the Wilderness (first clear on Easy, Medium, Hard, Expert); Full Migration (all four) |
+| Daily habits | Return Visit (2 days), Regular Visitor / Weekly Warbler / Fortnight Flyer / Resident Bird (3, 7, 14, 30 days in a row), Seasoned Birder (30 days), Hundred-Day Birder (100 days), Seven Songs (every weekday), Weekend Birder, Big Day (5 clears in a day), Twitchathon (10 in a day), Feeding Frenzy (3 boards within 15 minutes) |
 | Field progress | Life List (all 20 birds), Habitat Hopper (all 12 layouts), Pair Bonding (250 pairs), Mates for Life (1,000), In the Groove (×12 streak), Sharp Eyes (10 hint-free clears), Flawless Flight, Eagle Eye (flawless Hard/Expert), Wilderness Veteran (5 Expert clears) |
-| Swift wings | Swift (Easy < 1:00), Kingfisher Dive (Medium < 2:00), Osprey Strike (Hard < 3:30), Peregrine Stoop (Expert < 5:00), Quick Wings (5 pairs in 10 s) |
-| Just for fun | Crow or Raven? (try to pair them), Birdbrain (10 mismatches on a board), Woodpecker Technique (15 blocked taps), Second Thoughts (10 undos), Borrowed Binoculars (10 hints), Ruffled Feathers (a Shuffle), Back to the Nest (a Restart), Nest Egg (clear a continued board), Night Owl (00:00–04:59), Early Bird (05:00–07:59), Gobble Gobble (finish on Wild Turkeys) |
+| Skillful play | Unbroken Chain (×20), Perfect Forty (×40), Field Guide Free (hint-free Expert), No Regrets (10 clears without Undo), Steady Hands (10 without a mismatch), Five Clean Flights (5 flawless), Immaculate Migration (flawless on every difficulty), High Flyer (5,000 points on a board), Point Collector (50,000 in total), Comeback Kid (clear after a Shuffle), Back from the Brink (clear after a Restart) |
+| Swift wings | Swift / Kingfisher Dive / Osprey Strike / Peregrine Stoop (Easy < 1:00, Medium < 2:00, Hard < 3:30, Expert < 5:00); Chickadee Dash / Blue Jay Blitz / Red-tail Rush / Falcon Flash (< 0:40, 1:20, 2:30, 3:30); Quick Wings (5 pairs in 10 s), Hummingbird Hands (8 pairs in 10 s) |
+| Timing & tempo | Personal Best, Always Improving (10 personal bests), Photo Finish (beat your best by one second), Slow and Steady (20+ minutes on a board), Marathon Migration (2 hours in total), Lunch Break Birder (12:00–13:59), Evening Chorus (18:00–19:59) |
+| Bird specialist | Finish a board on Bald Eagles (The Eagle Has Landed), an owl (Hoot Finale), Canada Geese (Honk If You're Done), Hummingbirds (Tiny Triumph), Cardinals (Cardinal Rule), Wood Ducks (Lucky Duck); Grand Finale Collector (10 different finishing birds); Owl Prowl (50 owl pairs), Raptor Rapture, Songbird Serenade, Waterside Watcher (100 pairs of each family); Know Your Corvids (clear a crow-and-raven board without mixing them up) |
+| Just for fun | Crow or Raven?, Birdbrain (10 mismatches on a board), Woodpecker Technique (15 blocked taps), Second Thoughts (10 undos), Borrowed Binoculars (10 hints), Change of Heart (10 deselects), Ruffled Feathers (a Shuffle), Back to the Nest (a Restart), Nest Egg (clear a continued board), Night Owl (00:00–04:59), Early Bird (05:00–07:59), Gobble Gobble (finish on Wild Turkeys) |
+
+**Days and times** are the player's own local calendar and clock. A day
+counts when a board is cleared on it; the streak grows when the previous
+clear was the calendar day before, and the Stats screen shows it as broken
+once a whole day passes with no clear. Personal bests compare against the
+fastest earlier time on that difficulty (a first clear sets the time but
+isn't a personal best).
 
 Each one has a badge drawn in the game's palette: a medal, rosette or trophy
 in bronze, silver, gold, leaf, sky or cardinal, with that bird's tile art in a
@@ -312,7 +325,7 @@ and progressive ones show a progress bar. Earned cards show a quip and the date.
 over the lifetime stats (`js/player-stats.js`), so unlocking is deterministic
 and fully unit-tested. The game controller reports events (match, mismatch,
 blocked tap, undo, hint, shuffle, restart) through `onEvent`, purely as an
-observer. A per-board tracker folds them into the stats, and anything newly
+observer (plus "deselect"). A per-board tracker folds them into the stats, and anything newly
 earned mid-game appears as a toast; everything earned on a board is listed on
 the results screen. Board time for speed achievements excludes pauses, as the
 results screen's time does. Flawless means one sitting with no mismatch, hint,

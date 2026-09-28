@@ -22,8 +22,23 @@ const SHAPES = ["medal", "trophy", "rosette"];
 const win = (extra = {}) => ({
   difficultyId: "easy", layoutId: "meadow", seconds: 300, pairs: 12, bestStreak: 3, hintsUsed: 1,
   shuffles: 0, mismatches: 2, restarts: 0, undos: 0, continued: false,
-  birds: ["northern-cardinal"], lastBird: "northern-cardinal", hour: 14, ...extra,
+  birds: ["northern-cardinal"], lastBird: "black-capped-chickadee", hour: 14, ...extra,
 });
+
+/** Stats that satisfy every achievement: all counts huge, every set full, all times fast. */
+function maxedStats() {
+  const s = emptyStats();
+  for (const [k, v] of Object.entries(s)) if (typeof v === "number") s[k] = 100000;
+  for (const d of DIFFICULTIES) {
+    s.clears[d.id] = 100; s.fastest[d.id] = 1; s.noHintBy[d.id] = 10; s.flawlessBy[d.id] = 10;
+  }
+  for (const b of BIRD_IDS) s.birdPairs[b] = 1000;
+  s.layouts = [...LAYOUT_IDS];
+  s.species = [...BIRD_IDS];
+  s.finishBirds = [...BIRD_IDS];
+  s.weekdays = [0, 1, 2, 3, 4, 5, 6];
+  return s;
+}
 
 const earned = (stats) => new Set(earnedIds(stats));
 
@@ -63,19 +78,21 @@ describe("achievement definitions", () => {
   });
 
   test("every achievement is reachable, and progress reads full when earned", () => {
-    const s = emptyStats();
-    Object.assign(s, {
-      boardsCleared: 100, pairsCleared: 1000, bestStreak: 12, noHintClears: 10, flawlessClears: 1, flawlessBig: 1,
-      continuedClears: 1, nightOwlClears: 1, earlyBirdClears: 1, turkeyFinishes: 1, shufflesUsed: 1, restartsUsed: 1,
-      crowRaven: 1, maxMismatches: 10, maxBlockedTaps: 15, maxUndos: 10, maxHints: 10, bestBurst: BURST_PAIRS,
-    });
-    for (const d of DIFFICULTIES) { s.clears[d.id] = 5; s.fastest[d.id] = SPEED_GOALS[d.id] - 1; }
-    s.layouts = [...LAYOUT_IDS];
-    s.species = [...BIRD_IDS];
+    const s = maxedStats();
     assert.deepEqual(earnedIds(s).sort(), ACHIEVEMENTS.map((a) => a.id).sort());
     for (const a of ACHIEVEMENTS) {
       const p = progressOf(a, s);
       if (p) assert.equal(p[0], p[1], a.id);
+    }
+  });
+
+  test("every progress bar is [have, need] with 0 ≤ have ≤ need", () => {
+    for (const s of [emptyStats(), maxedStats()]) {
+      for (const a of ACHIEVEMENTS) {
+        const p = progressOf(a, s);
+        if (!p) continue;
+        assert.ok(Number.isInteger(p[0]) && Number.isInteger(p[1]) && p[0] >= 0 && p[0] <= p[1] && p[1] > 0, `${a.id}: ${p}`);
+      }
     }
   });
 });

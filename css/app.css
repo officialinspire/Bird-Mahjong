@@ -1334,3 +1334,28 @@ body[data-screen="game"] { overscroll-behavior: none; }
   .achievement-list { grid-template-columns: 1fr 1fr; }
   .badge--md { width: 72px; }
 }
+
+/* Stats: jump links to each achievement group. */
+.achievement-nav { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Two columns on phones: an odd last tile takes the whole row. */
+.stats-summary div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 700px) { .stats-summary div:last-child:nth-child(odd) { grid-column: auto; } }
+.achievement-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--rim);
+  background: var(--paper);
+  color: var(--leaf-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.achievement-chip:hover { border-color: var(--leaf); }
+.achievement-chip span { color: var(--sky-ink); font-weight: 800; font-variant-numeric: tabular-nums; }
+.achievement-group { scroll-margin-top: 12px; }
+.achievement-group h3:focus { outline: none; }
+.achievement-group h3:focus-visible { outline: 3px solid var(--cardinal); outline-offset: 3px; }

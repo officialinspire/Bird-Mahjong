@@ -32,8 +32,9 @@ const formatTime = (seconds) => {
  * can autosave. `snapshot` is { state, elapsedMs }.
  *
  * `onEvent(type, detail)` reports what the player does, for achievements:
- *   "blocked", "mismatch" { a, b } (the two birds), "match" { seconds, streak }
- *   (board time, pauses excluded), "undo", "hint", "shuffle", "restart".
+ *   "blocked", "deselect", "mismatch" { a, b } (the two birds),
+ *   "match" { seconds, streak } (board time, pauses excluded), "undo", "hint",
+ *   "shuffle", "restart".
  * It is purely an observer: nothing it does can change the game.
  */
 export function createGameController({ elements, reducedMotion, onWin, onWon = () => {}, onChange = () => {}, onEvent = () => {}, sound = null }) {
@@ -206,6 +207,7 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
         state = next;
         say(`${name} deselected.`);
         play("select");
+        report("deselect");
         break;
       case "mismatch":
         state = next;

@@ -23,7 +23,8 @@
 import path from "node:path";
 import { launchBrowser, serve } from "./lib/serve.mjs";
 import { SEED, playPairs, solutionFor, startDifficulty, tile } from "./lib/play.mjs";
-import { ACHIEVEMENTS, achievementById } from "../js/achievements.js";
+import { ACHIEVEMENTS, achievementById, earnedIds } from "../js/achievements.js";
+import { applyWin, emptyStats } from "../js/player-stats.js";
 import { DIFFICULTIES } from "../js/config.js";
 import { createGame, removePair, tileIsFree } from "../js/game/game.js";
 
@@ -92,7 +93,10 @@ async function newPlayer(browser, url) {
 async function firstWin(browser, url) {
   console.log("a clean first Easy win");
   const { context, page, errors } = await open(browser, url, { options: PHONE });
-  const hour = await page.evaluate(() => new Date().getHours());
+  const when = await page.evaluate(() => {
+    const d = new Date();
+    return { hour: d.getHours(), weekday: d.getDay(), date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` };
+  });
   await startDifficulty(page, "easy");
   // Watch for toasts during play.
   await page.evaluate(() => {
@@ -104,9 +108,24 @@ async function firstWin(browser, url) {
   });
   await playPairs(page, solutionFor("easy"));
   await page.waitForSelector("#screen-results:not([hidden])");
-  const expected = ["clears-1", "first-easy", "flawless", "streak-12", "speed-easy", "quick-wings"];
-  if (hour < 5) expected.push("night-owl");
-  else if (hour < 8) expected.push("early-bird");
+  // What the rules say this exact win earns, worked out independently from
+  // the board (solution, birds, last pair) and the page's clock.
+  const game = createGame("meadow", { seed: SEED, birdPool: DIFFICULTIES[0].birdPool });
+  const sol = solutionFor("easy");
+  const secs = await page.evaluate(() => {
+    const [m, s] = document.getElementById("result-time").textContent.split(":").map(Number);
+    return m * 60 + s;
+  });
+  const modelled = applyWin(emptyStats(), {
+    difficultyId: "easy", layoutId: "meadow", seconds: secs, pairs: 12, score: 1650, bestStreak: 12, hintsUsed: 0,
+    shuffles: 0, mismatches: 0, restarts: 0, undos: 0, continued: false, crowRavenMixups: 0,
+    birds: [...new Set(game.birds)], lastBird: game.birds[sol.at(-1)[0]], ...when, at: Date.now(),
+  });
+  modelled.bestBurst = 12; // all twelve pairs were taken within a few seconds
+  const expected = earnedIds(modelled);
+  for (const id of ["clears-1", "first-easy", "flawless", "streak-12", "speed-easy", "speed-easy-elite", "quick-wings", "hummingbird-hands"]) {
+    check(expected.includes(id), `the rules award ${achievementById(id).name} for this win`);
+  }
   const got = await resultsEarned(page);
   check(same(got, expected), `results list: ${names(got).join(", ")}`, `expected ${names(expected).join(", ")}`);
   const toasts = await page.evaluate(() => window.__toasts);
@@ -120,6 +139,21 @@ async function firstWin(browser, url) {
   check(same(s.earned, expected), "Stats shows the same achievements earned", JSON.stringify(s.earned));
   check(s.summary["Boards cleared"] === "1" && s.summary["Pairs cleared"] === "12" && s.summary["Layouts cleared"] === "1 / 12" && s.summary["Birds seen"] === "6 / 20",
     "totals: 1 board, 12 pairs, 1 layout, 6 birds", JSON.stringify(s.summary));
+  check(s.summary["Day streak"] === "1 day" && s.summary["Days played"] === "1" && /^\d+ s$/.test(s.summary["Time birding"]),
+    `daily totals: streak ${s.summary["Day streak"]}, days ${s.summary["Days played"]}, time ${s.summary["Time birding"]}`);
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("inspireBirdMahjong:v1:stats")));
+  check(stored.lastDay === when.date && stored.weekdays.join() === String(when.weekday) && stored.recentClears.length === 1 && stored.finishBirds.length === 1,
+    "the win was stored with today's date, weekday, time and finishing bird", JSON.stringify({ lastDay: stored.lastDay, weekdays: stored.weekdays }));
+  // Jump links go to each group.
+  const chips = await page.$$eval(".achievement-chip", (els) => els.map((e) => e.dataset.jump));
+  check(chips.length === 9, `${chips.length} group jump links`);
+  await page.click('.achievement-chip[data-jump="birds"]');
+  await page.waitForTimeout(200);
+  const jumped = await page.evaluate(() => {
+    const r = document.querySelector('.achievement-group[data-category="birds"]').getBoundingClientRect();
+    return r.top >= -2 && r.top < innerHeight / 2 && document.activeElement?.textContent.startsWith("Bird specialist");
+  });
+  check(jumped, "a jump link scrolls to its group and moves focus there");
   check(s.rows.Easy[0] === "1" && s.rows.Easy[1] === "1,650" && /^0:\d\d$/.test(s.rows.Easy[2]), `Easy record: ${s.rows.Easy.join(" · ")}`);
   check(s.dates.length === expected.length && s.dates.every((d) => /^Earned /.test(d)), "each earned card shows the date");
   if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, "achievements-stats.png"), fullPage: true });
@@ -217,6 +251,14 @@ async function forFun(browser, url) {
     check(earned.includes(id), `earned "${achievementById(id).name}"`);
   }
   check(!earned.includes("clears-1"), "…and nothing about clearing, since no board was cleared");
+
+  // Change of Heart: select and deselect the same free tile, at a human pace.
+  for (let i = 0; i < 20; i++) {
+    await page.click(tile(line.crow));
+    await page.waitForTimeout(370);
+  }
+  const hearts = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem("inspireBirdMahjong:v1:achievements"))));
+  check(hearts.includes("change-of-heart"), 'ten deselects earn "Change of Heart"');
   if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, "achievements-toast.png") });
   check(!errors.length, "no errors", errors.join("; "));
   await context.close();
