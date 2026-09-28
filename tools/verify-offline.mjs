@@ -224,7 +224,7 @@ async function updatePath(browser, url, served) {
   const after = Object.keys(await cacheReport(page)).filter((k) => /^bird-mahjong-[0-9a-f]/.test(k));
   check(after.length === 1 && after[0] === "bird-mahjong-fffffffff002" && !after.includes(v1Caches[0]), "the old version's cache is deleted", JSON.stringify(after));
   await page.click("#screen-start");
-  check(/Medium · 17 pairs left/.test(await page.textContent("#continue-detail")), "the board in progress survived the update");
+  check(/Medium · Twin Groves · 17 pairs left/.test(await page.textContent("#continue-detail")), "the board in progress survived the update");
 
   await context.setOffline(true);
   await page.reload({ waitUntil: "load" });

@@ -51,7 +51,7 @@ export function createSavedGame(storage) {
     if (!difficulty) return null;
     if (!Number.isFinite(data.elapsedMs) || data.elapsedMs < 0 || data.elapsedMs > MAX_ELAPSED_MS) return null;
     const state = tryDeserializeGame(data.game);
-    if (!state || state.layoutId !== difficulty.layout || isWon(state)) return null;
+    if (!state || !difficulty.layouts.includes(state.layoutId) || isWon(state)) return null;
     return { difficultyId: difficulty.id, state, elapsedMs: data.elapsedMs, savedAt: Number(data.savedAt) || 0 };
   }
 

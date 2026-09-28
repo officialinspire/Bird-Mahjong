@@ -6,8 +6,9 @@ step, no runtime CDN — hosted on GitHub Pages.
 **Play it:** <https://officialinspire.github.io/Bird-Mahjong/>. It installs as
 an app and works offline after the first visit.
 
-**Status:** released. There are three difficulties (Easy 24 tiles, Medium 40,
-Hard 60). The game has hint, undo, shuffle and restart, autosave with
+**Status:** released. There are four difficulties (Easy 24 tiles, Medium 40,
+Hard 60, Expert 80), each rotating through three board layouts so consecutive
+rounds play differently. The game has hint, undo, shuffle and restart, autosave with
 Continue, optional sound and animation, keyboard play, and offline install.
 Every generated board has a verified solution.
 
@@ -106,6 +107,7 @@ js/settings.js             settings persisted in localStorage
 js/storage.js              one safe wrapper around localStorage (memory fallback)
 js/saved-game.js           the autosaved board (Continue)
 js/best-scores.js          best score, fastest time and clears per difficulty
+js/layout-rotation.js      which layout each difficulty's next board uses
 js/game/save-format.js     game state <-> JSON, with strict validation
 js/background.js           slowly drifting bird tiles behind the UI
 tiles.html                 tile reference gallery (css/gallery.css, js/gallery.js)
@@ -122,6 +124,7 @@ js/game/                   pure game logic (no DOM): geometry, rules, generator,
 tests/                     unit tests for the game logic (node --test)
 tools/verify-layout.mjs    responsive layout checks (Playwright)
 tools/verify-play.mjs      touch and mouse play checks (Playwright)
+tools/verify-layouts.mjs   every layout on phone/desktop, played to the end, and the rotation (Playwright)
 tools/verify-save.mjs      autosave / Continue checks with real reloads (Playwright)
 tools/verify-polish.mjs    keyboard, labels, sound, animation, contrast checks (Playwright)
 tools/verify-clearing.mjs  pair clearing: lift/fade, sparkle, fast taps, mid-animation Undo/Restart/Shuffle (Playwright)
@@ -178,7 +181,8 @@ tile, and the contact sheet labels each crop with its number, name and ID.
 The flow is the same as our Sudoku and Deja Vu games:
 
 **Start** (touch, click or any key) → **INSPIRE intro** → **Main menu** → **New Game** →
-**Difficulty** (Easy · Meadow, Medium · Twin Groves, Hard · Old Growth) →
+**Difficulty** (Easy, Medium, Hard, Expert; each board takes the next layout in
+that difficulty's rotation) →
 **Game** → **Results**. **How to Play** and
 **Settings** open from the menu; each has a ← Menu button.
 
@@ -426,7 +430,7 @@ None of these punish the player.
 | **Hint** | Highlights one pair you can legally take right now (dashed ring and "?"). Score and streak are unchanged. While the board's verified route is intact, the hint is the next pair on it, so following hints always finishes the board. Once you've left the route, it suggests a legal pair that doesn't immediately leave the board stuck. |
 | **Undo** | Puts the last removed pair back, along with exactly the score, streak and best streak from before it. You can undo all the way back, even after a shuffle, because removed tiles keep their birds. |
 | **Pause** | Opens the pause dialog: Resume, Restart Board, New Game or Main Menu. The ☰ button and Escape do the same, and the game pauses when the tab is hidden. |
-| **New Game** | Deals a fresh board of the same difficulty. If you've matched anything, it asks first, with *Keep playing* focused. |
+| **New Game** | Deals a fresh board of the same difficulty, on its next layout. If you've matched anything, it asks first, with *Keep playing* focused. |
 
 **Stuck boards.** After every change the game checks whether any legal
 matching pair is left. If none is, a friendly panel slides up over the board
@@ -455,6 +459,7 @@ server.
 |----------------------|------|
 | `inspireBirdMahjong:v1:save` | The board in progress: difficulty, every tile's bird, removed tiles, selected tile, score, streak, undo history (with each pair's points), hint/shuffle/restart counts, the verified route, the original deal, and elapsed time |
 | `inspireBirdMahjong:v1:bests` | Per difficulty: best score, fastest time, and boards cleared |
+| `inspireBirdMahjong:v1:layouts` | Per difficulty: the layouts still to come this rotation, and the last one played |
 | `inspireBirdMahjong:v1:settings` | Motion, background birds, tile labels, streak bonus |
 
 - **Autosave** happens after every change on the board (match, mismatch,
@@ -526,10 +531,29 @@ browser and in Node tests.
 | Difficulty | Layout | Tiles | Birds | Layers (tiles per layer) | Shape |
 |------------|--------|-------|-------|--------------------------|-------|
 | Easy | `meadow` | 24 | 6 | 3 (18/4/2) | a low diamond (rows of 2-4-6-4-2) with a small raised centre |
+| Easy | `pond` | 24 | 6 | 2 (16/8) | a 6×4 ring around an open pond, top and bottom banks raised |
+| Easy | `hedgerow` | 24 | 6 | 3 (16/6/2) | two hedges of eight, each with an off-centre crest and a top tile |
 | Medium | `twin-groves` | 40 | 10 | 3 (30/8/2) | two 3-layer peaks at opposite ends of a flat 4×3 clearing |
+| Medium | `hilltop` | 40 | 10 | 3 (24/15/1) | a rounded hill: 6×4 base, a half-offset 5×3 layer and a summit |
+| Medium | `crossroads` | 40 | 10 | 3 (28/8/4) | a plus-shaped crossing whose east–west road climbs to a 2×2 rise |
 | Hard | `old-growth` | 60 | 15 | 5 (34/12/8/4/2) | a tall tower: 8×4 base with side wings, then 6×2, 4×2, 2×2 and a 2-tile crown |
+| Hard | `canopy` | 60 | 15 | 4 (30/18/8/4) | a wide, low 10×3 canopy under three half-offset tiers |
+| Hard | `summit` | 60 | 15 | 4 (32/18/8/2) | a stepped pyramid, each layer half a tile in from the one below |
+| Expert | `wildwood` | 80 | 20 | 4 (40/27/12/1) | a vast 10×4 forest floor under three tiers |
+| Expert | `twin-towers` | 80 | 20 | 4 (40/26/12/2) | two four-tier towers joined by a raised bridge |
+| Expert | `fortress` | 80 | 20 | 3 (36/36/8) | a two-high walled ring with corner turrets around a stepped keep |
 
-Every bird appears exactly four times.
+Every bird appears exactly four times; Expert uses all 20 birds.
+
+**Layout rotation** (`js/layout-rotation.js`). Each difficulty draws its
+layouts from a shuffled bag: every layout comes up once before any repeats, and
+the next board never uses the same layout as the one before it, even across a
+refill or a reload. Playing Again after a win, New Game, or picking the
+difficulty again all take the next layout. A continued save or a `?seed=`
+replay counts as the latest board so the one after it still differs. `?seed=`
+uses the difficulty's first (signature) layout unless `&layout=<id>` names one
+of its others. All layouts of a difficulty have the same tile count, so scores
+and bests stay comparable per difficulty.
 
 **Easy uses visually distinct birds.** Easy draws its 6 birds from
 `EASY_BIRDS`, a pool of 8 with clearly different colours and silhouettes:
@@ -538,7 +562,7 @@ great blue heron. `LOOKALIKE_GROUPS` in `js/game/birds.js` lists birds that are
 easy to confuse: the dark crow, raven and turkey; the two owls; the small grey
 songbirds; the brown-and-white raptors; the blue crests; and the red crests. The
 Easy pool has at most one bird from each group and never the crow or raven.
-Medium and Hard draw from all 20.
+Medium, Hard and Expert draw from all 20.
 
 **Scoring** (`js/game/score.js`) has no countdown, no lives, no failure screen
 and no time penalty.
@@ -580,8 +604,11 @@ They need no dependencies. The tests cover:
 - blocked, covered and free tiles, including half-tile offsets, and matching
 - 200 seeds per layout, plus 300 per difficulty: exactly four copies per bird,
   and the solution replayed independently through the rules
-- difficulty sizes (24/6, 40/10, 60/15), and that the three layouts really
-  differ in shape
+- difficulty sizes (24/6, 40/10, 60/15, 80/20), three structurally sound
+  layouts per difficulty that really differ in shape, 300 boards per layout
+- layout rotation (`tests/layout-rotation.test.js`): each layout once per cycle,
+  never the same twice in a row, remembered across reloads, safe with junk or
+  blocked storage
 - Easy never deals the crow or raven, or two look-alikes
 - scoring: +100 per pair, the capped streak bonus and the switch that turns it
   off, no time or help penalties, and undo taking back exact points
@@ -662,7 +689,7 @@ npm test                         # every check, including the release sweep
 `tools/verify-play.mjs` plays real seeded games in Chromium, working out each
 board's solution from the same pure logic. It checks:
 
-- **Readability:** on six viewports × three difficulties, tiles are at least
+- **Readability:** on six viewports × four difficulties, tiles are at least
   40px wide, zoom appears only when a board can't fit, the page never
   scrolls, and every free tile can actually be hit (not hidden under another
   tile).

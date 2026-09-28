@@ -11,6 +11,8 @@ import { createBestScores } from "./best-scores.js";
 import { createSavedGame } from "./saved-game.js";
 import { openStorage } from "./storage.js";
 import { tilesLeft } from "./game/game.js";
+import { getLayout } from "./game/geometry.js";
+import { createLayoutRotation } from "./layout-rotation.js";
 import { createGameController } from "./ui/game-controller.js";
 import { createSound } from "./ui/sound.js";
 import { createIntro } from "./ui/intro.js";
@@ -24,6 +26,7 @@ const $ = (selector) => document.querySelector(selector);
 const { storage, persistent } = openStorage();
 const bests = createBestScores(storage);
 const saved = createSavedGame(storage);
+const rotation = createLayoutRotation(storage);
 
 const state = {
   screen: "start",
@@ -105,7 +108,7 @@ function renderDifficulties() {
       title.append(habitat);
 
       const detail = document.createElement("span");
-      detail.textContent = `${d.tiles} tiles · ${d.birds} birds`;
+      detail.textContent = `${d.tiles} tiles · ${d.birds} birds · ${d.layouts.length} layouts`;
 
       const best = document.createElement("span");
       best.className = "difficulty-best";
@@ -173,20 +176,37 @@ const game = createGameController({
   onChange: (snap) => saved.save({ difficultyId: state.difficulty, ...snap }),
 });
 
-// `?seed=123` replays a specific first board (handy for sharing and tests).
+// `?seed=123` replays a specific first board (handy for sharing and tests)
+// on the difficulty's signature layout, or on `?layout=<id>` if that layout
+// belongs to the chosen difficulty.
+const query = new URLSearchParams(location.search);
 let pendingSeed = (() => {
-  const raw = new URLSearchParams(location.search).get("seed");
+  const raw = query.get("seed");
   return raw !== null && /^\d+$/.test(raw) ? Number(raw) : undefined;
 })();
+let pendingLayout = query.get("layout") ?? undefined;
+
+/** "Easy · Pond": the difficulty and this board's layout. */
+const boardLabel = (d, layoutId) => `${d.name} · ${getLayout(layoutId).name}`;
 
 function startGame(difficultyId) {
   const d = difficultyById(difficultyId);
   state.difficulty = d.id;
-  $("#game-difficulty").textContent = `${d.name} · ${d.habitat}`;
+  // Every new board takes the next layout in this difficulty's rotation, so
+  // consecutive rounds play differently. A seeded replay uses a fixed layout.
+  let layoutId;
+  if (pendingSeed !== undefined || d.layouts.includes(pendingLayout)) {
+    layoutId = d.layouts.includes(pendingLayout) ? pendingLayout : d.layout;
+    rotation.played(d, layoutId);
+  } else {
+    layoutId = rotation.next(d);
+  }
+  $("#game-difficulty").textContent = boardLabel(d, layoutId);
   // Show the screen first so the board can measure its viewport.
   showScreen("game");
-  game.start(d, { seed: pendingSeed, streakBonus: state.settings.streakBonus });
+  game.start(d, { seed: pendingSeed, streakBonus: state.settings.streakBonus, layoutId });
   pendingSeed = undefined;
+  pendingLayout = undefined;
 }
 
 // ---------- Autosave and Continue ----------
@@ -205,7 +225,7 @@ function renderContinue() {
   if (save) {
     const d = difficultyById(save.difficultyId);
     const pairs = tilesLeft(save.state) / 2;
-    $("#continue-detail").textContent = `${d.name} · ${pairs} pair${pairs === 1 ? "" : "s"} left · ${save.state.score.toLocaleString()} pts`;
+    $("#continue-detail").textContent = `${boardLabel(d, save.state.layoutId)} · ${pairs} pair${pairs === 1 ? "" : "s"} left · ${save.state.score.toLocaleString()} pts`;
     button.removeAttribute("title");
   } else {
     $("#continue-detail").textContent = "";
@@ -222,7 +242,8 @@ function continueGame() {
   }
   const d = difficultyById(save.difficultyId);
   state.difficulty = d.id;
-  $("#game-difficulty").textContent = `${d.name} · ${d.habitat}`;
+  rotation.played(d, save.state.layoutId); // the next board still differs
+  $("#game-difficulty").textContent = boardLabel(d, save.state.layoutId);
   showScreen("game");
   game.load(save.state, save.elapsedMs);
 }
@@ -240,7 +261,7 @@ function recordWin(summary) {
 function showResults(summary) {
   if (recorded?.summary !== summary) recordWin(summary);
   const d = difficultyById(state.difficulty);
-  $("#results-difficulty").textContent = `${d.name} · ${d.habitat}`;
+  $("#results-difficulty").textContent = boardLabel(d, game.state.layoutId);
   const { isNewBest, isNewBestTime, previous, best } = recorded.record;
   recorded = null;
   $("#result-score").textContent = summary.score.toLocaleString();
@@ -257,6 +278,7 @@ function showResults(summary) {
   $("#results-note").textContent =
     `Time is just for you — it never affects your score.${isNewBestTime && previous ? " That's your fastest yet." : ""}`;
   $("#result-cleared").textContent = `${d.name} boards cleared: ${best.games}`;
+  $("#result-next").textContent = `Play Again for a new ${d.name} layout — ${d.layouts.length} to rotate through.`;
   showScreen("results");
 }
 

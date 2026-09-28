@@ -7,11 +7,12 @@ import { DIFFICULTIES } from "../../js/config.js";
 
 export const SEED = 20260924;
 
-export function solutionFor(difficultyId, seed = SEED) {
+/** The known solution of a seeded board (`layoutId` defaults to the signature layout, as ?seed= does). */
+export function solutionFor(difficultyId, seed = SEED, layoutId = null) {
   const d = DIFFICULTIES.find((x) => x.id === difficultyId);
   // Must build the board exactly as the app does (same bird pool), or the
   // seeded random stream diverges and the solution won't match the screen.
-  return createGame(d.layout, { seed, birdPool: d.birdPool ?? undefined }).solution;
+  return createGame(layoutId ?? d.layout, { seed, birdPool: d.birdPool ?? undefined }).solution;
 }
 
 export const tile = (i) => `#board .tile[data-index="${i}"]`;
