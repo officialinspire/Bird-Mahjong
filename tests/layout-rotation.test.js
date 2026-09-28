@@ -57,7 +57,8 @@ describe("layout rotation", () => {
     storage.setItem(ROTATION_KEY, JSON.stringify({ easy: { bag: ["old-growth", "old-growth"], last: "meadow" } }));
     const rotation = createLayoutRotation(storage);
     const boards = [rotation.next(EASY), rotation.next(EASY)];
-    assert.ok(boards.every((id) => EASY.layouts.includes(id)) && !boards.includes("meadow"), `${boards}`);
+    // Only Easy layouts; the next board avoids the last one, and the one after differs again.
+    assert.ok(boards.every((id) => EASY.layouts.includes(id)) && boards[0] !== "meadow" && boards[1] !== boards[0], `${boards}`);
 
     const hostile = {
       getItem() { throw new Error("SecurityError"); },

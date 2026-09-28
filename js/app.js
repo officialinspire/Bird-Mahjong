@@ -16,6 +16,7 @@ import { createLayoutRotation } from "./layout-rotation.js";
 import { createGameController } from "./ui/game-controller.js";
 import { createSound } from "./ui/sound.js";
 import { createIntro } from "./ui/intro.js";
+import { warmTiles } from "./ui/tile-images.js";
 import { setupPwa } from "./pwa.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -554,3 +555,17 @@ syncSettingsForm();
 applySettings();
 renderBackground($("#sky-tiles"));
 bindEvents();
+
+// While the player is on the start screen and menus, fetch and decode every
+// bird tile in the size boards will use, so the first board (and each one
+// after it) draws completely on its first frame.
+// The first number formatting (scores use toLocaleString) loads locale data,
+// so do that now too rather than on the first board.
+function warmUp() {
+  warmTiles();
+  (0).toLocaleString();
+}
+// See js/ui/tile-images.js: once the service worker takes over, warm again.
+navigator.serviceWorker?.addEventListener("controllerchange", () => warmTiles(undefined, { fresh: true }));
+if (document.readyState === "complete") warmUp();
+else window.addEventListener("load", warmUp, { once: true });

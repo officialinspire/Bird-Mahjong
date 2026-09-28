@@ -13,14 +13,13 @@ import { getLayout } from "../game/geometry.js";
 import { isCovered } from "../game/rules.js";
 import { birdName } from "./bird-names.js";
 import { createBoardView } from "./board-view.js";
+import { tileFile } from "./tile-images.js";
 
 const DOUBLE_TAP_MS = 350;     // same tile again this soon = accidental double tap
 const REMOVE_MS = 280;         // match lift/fade length (CSS .is-removing)
 const QUICK_GUARD_MS = 120;    // reduced motion: only a tap-through guard, no animation wait
 const CELEBRATE_MS = 1500;     // restrained board-clear moment before results (animations on)
 const QUIET_WIN_MS = 250;      // with animations off: just let the last pair go
-
-const fileFor = (bird) => `${String(BIRD_IDS.indexOf(bird) + 1).padStart(2, "0")}-${bird}`;
 
 const formatTime = (seconds) => {
   const s = Math.floor(seconds);
@@ -38,7 +37,7 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
     viewport: elements.viewport,
     surface: elements.board,
     zoomControls: elements.zoom,
-    tileFile: fileFor,
+    tileFile,
     onActivate: activate,
   });
 

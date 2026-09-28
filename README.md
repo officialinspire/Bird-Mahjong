@@ -110,6 +110,7 @@ js/best-scores.js          best score, fastest time and clears per difficulty
 js/layout-rotation.js      which layout each difficulty's next board uses
 js/game/save-format.js     game state <-> JSON, with strict validation
 js/background.js           slowly drifting bird tiles behind the UI
+js/ui/tile-images.js       tile image sizes, and warming them up before a board
 tiles.html                 tile reference gallery (css/gallery.css, js/gallery.js)
 data/tiles.json            tile ID ↔ name mapping (hand-maintained)
 data/crops.json            measured crop boxes (generated)
@@ -125,6 +126,7 @@ tests/                     unit tests for the game logic (node --test)
 tools/verify-layout.mjs    responsive layout checks (Playwright)
 tools/verify-play.mjs      touch and mouse play checks (Playwright)
 tools/verify-layouts.mjs   every layout on phone/desktop, played to the end, and the rotation (Playwright)
+tools/verify-perf.mjs      loading and smoothness: modulepreload, tile warm-up, first-frame boards (Playwright)
 tools/verify-save.mjs      autosave / Continue checks with real reloads (Playwright)
 tools/verify-polish.mjs    keyboard, labels, sound, animation, contrast checks (Playwright)
 tools/verify-clearing.mjs  pair clearing: lift/fade, sparkle, fast taps, mid-animation Undo/Restart/Shuffle (Playwright)
@@ -275,11 +277,48 @@ are 1.25× from "whole board" up to 110px tiles, and each step keeps the centre
 of the view in place. Panning is native scrolling inside the board frame
 (touch or wheel) or a mouse drag; the page itself never scrolls or zooms. The
 board is laid out at the zoomed size rather than CSS-scaled, so tap targets
-and images stay exact. Zoomed tiles load the full-resolution WebP through
-`srcset`.
+and images stay exact. Each board shows either the 120px WebP tiles or the
+~200px ones, whichever is still sharp at its tile width × the screen's pixel
+ratio (`js/ui/tile-images.js`); zooming in switches to the sharper set, and
+zooming out keeps it rather than reloading.
 
 `?seed=123` in the URL replays a specific first board, which is handy for
 sharing a deal or reproducing a bug.
+
+## Loading fast and staying smooth
+
+Measured on a slow 4G connection with a phone CPU (4× throttled Chromium);
+`npm run test:perf` (`tools/verify-perf.mjs`) keeps each of these true.
+
+- **Scripts arrive together.** `index.html` lists every game module as
+  `<link rel="modulepreload">`, so they download in parallel instead of one
+  import level at a time (all modules in ~1.45s instead of ~1.9s). The list
+  is generated from the import graph by `npm run build:sw`, and the build
+  check fails if it goes stale.
+- **Boards appear complete.** After the page loads, every bird tile is fetched
+  and decoded in idle moments while the player is on the start screen and
+  menus, in the size boards will use (small tiles, plus the sharper set on
+  1.5× screens and up). Every board, including the first and each Play Again,
+  draws all its tiles on its first frame. Before, 12–28 of an Expert board's
+  80 tiles were still blank when it appeared and filled in over ~0.5s. When
+  the service worker takes control on a first visit, the tiles are warmed again
+  under it, because Chrome no longer counts images warmed before that as ready.
+- **The first load isn't crowded.** The service worker registers after the
+  page's `load` event, so its one-off offline download (the whole game,
+  music included) never competes with the first screen's scripts and images.
+  The first score formatting (locale data) is also done then, not on the
+  first board.
+- **One style pass per new board.** A new board's tiles are built off-screen
+  with their birds and states, then attached once, instead of being styled
+  bare and restyled.
+- **A lighter background.** Each drifting bird is one filter-free `<img>`
+  (the rise on `transform`, the sway on `translate`/`rotate`), animated on the
+  compositor. An idle game screen does no main-thread painting at all, and
+  the background's share of each frame's layer work during play dropped by
+  about a third. At 12–20% opacity, the removed drop shadow and desaturation
+  were invisible.
+- **Responsive taps.** A tap on an Expert board reaches the next frame in
+  about 16ms (p90 < 50ms, checked by the test).
 
 ## Calm polish: sound, animation and access
 

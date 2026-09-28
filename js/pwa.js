@@ -33,8 +33,15 @@ export function setupPwa({ banner, refreshButton, laterButton, installButton, be
     window.location.reload();
   });
 
-  const ready = navigator.serviceWorker
-    .register("./sw.js", { scope: "./", updateViaCache: "none" })
+  // Register once the page has loaded: the first install precaches the whole
+  // game (music included), and that download must not compete with the
+  // page's own scripts and tiles on a slow connection.
+  const loaded = new Promise((resolve) => {
+    if (document.readyState === "complete") resolve();
+    else window.addEventListener("load", () => resolve(), { once: true });
+  });
+  const ready = loaded
+    .then(() => navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }))
     .then((registration) => {
       const watch = (worker) => {
         if (!worker) return;

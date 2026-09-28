@@ -86,38 +86,41 @@ p { margin: 0; }
 .sky-tiles[hidden] { display: none; }
 body[data-screen="game"] .sky-tiles { opacity: 0.45; }
 
+/* Each drifting tile is a single <img> with no filters, so the browser
+   animates it entirely on the compositor: the rise on `transform`, the gentle
+   sway on the separate `translate` and `rotate` properties (they combine with
+   transform). Nothing about them needs repainting while the game is played. */
 .float-tile {
   position: absolute;
   left: var(--x);
   top: 100%;
   width: var(--size);
+  height: auto;
   opacity: var(--alpha, 0.2);
-  filter: saturate(0.85) drop-shadow(0 6px 10px rgb(47 42 32 / 0.15));
-  animation: float-up var(--dur) linear var(--delay) infinite;
+  animation:
+    float-up var(--dur) linear var(--delay) infinite,
+    sway var(--sway-dur) ease-in-out infinite alternate;
   will-change: transform;
 }
-.float-tile img { width: 100%; animation: sway var(--sway-dur) ease-in-out infinite alternate; }
 
 @keyframes float-up {
   from { transform: translate3d(0, 0, 0) rotate(var(--rot)); }
   to   { transform: translate3d(var(--drift), calc(-100dvh - 100% - 40px), 0) rotate(calc(var(--rot) * -1)); }
 }
 @keyframes sway {
-  from { transform: translateX(-10px) rotate(-3deg); }
-  to   { transform: translateX(10px) rotate(3deg); }
+  from { translate: -10px 0; rotate: -3deg; }
+  to   { translate: 10px 0; rotate: 3deg; }
 }
 
 /* Reduced motion: tiles rest, scattered, and screen fades are dropped.
    "system" follows the OS; the Settings screen can force either way. */
-html[data-motion="reduce"] .float-tile,
-html[data-motion="reduce"] .float-tile img { animation: none; }
+html[data-motion="reduce"] .float-tile { animation: none; }
 html[data-motion="reduce"] .float-tile { top: var(--y); transform: rotate(var(--rot)); }
 html[data-motion="reduce"] .screen.is-active { animation: none; }
 html[data-motion="reduce"] .start-prompt { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-motion="system"] .float-tile,
-  html[data-motion="system"] .float-tile img { animation: none; }
+  html[data-motion="system"] .float-tile { animation: none; }
   html[data-motion="system"] .float-tile { top: var(--y); transform: rotate(var(--rot)); }
   html[data-motion="system"] .screen.is-active { animation: none; }
   html[data-motion="system"] .start-prompt { animation: none; }

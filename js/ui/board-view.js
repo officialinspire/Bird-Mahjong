@@ -12,6 +12,7 @@
 //   hint      dashed ring AND a "?" badge
 
 import { birdCue, birdName, birdShort } from "./bird-names.js";
+import { tileUrl, variantFor } from "./tile-images.js";
 
 const TILE_RATIO = 1.28;      // tile height / width (cropped art is ~210×268)
 const DEPTH = 0.085;          // per-layer up-left shift, in tile widths
@@ -22,9 +23,6 @@ const MAX_TILE = 92;          // don't let tiles grow huge on big screens
 const ZOOM_STEP = 1.25;
 const MAX_ZOOM_TILE = 110;
 const DRAG_THRESHOLD = 8;     // px of movement that turns a press into a pan
-
-const SMALL = (bird) => `assets/tiles-sm/${bird}.webp`;
-const FULL = (bird) => `assets/tiles-md/${bird}.webp`;
 
 const SCORE_FLOAT_MS = 900;   // CSS .score-float (850ms) + a little
 const SPARKLE_MS = 560;       // CSS .match-sparkle (520ms) + a little
@@ -38,6 +36,10 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
   let suppressClickUntil = 0;
   let roving = -1;           // the one free tile in the Tab order (roving tabindex)
   let zoomedOutByPlayer = false; // player chose − / Fit below the readable size
+  // Image size for every tile ("sm" or "md", see js/ui/tile-images.js). It
+  // only ever steps up during a board (zooming in), never down, so zooming
+  // out never reloads images that are already sharp.
+  let variant = "sm";
 
   // ---------- Geometry ----------
 
@@ -81,7 +83,10 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
     surface.style.width = `${Math.round(size.width)}px`;
     surface.style.height = `${Math.round(size.height)}px`;
     surface.style.setProperty("--tile-w", `${w}px`);
-    const sizes = `${Math.round(w)}px`;
+    if (variant === "sm" && variantFor(w) === "md") {
+      variant = "md";
+      tiles.forEach((el) => { if (el.dataset.bird) el.firstChild.src = tileUrl(tileFile(el.dataset.bird), variant); });
+    }
     layout.positions.forEach((p, i) => {
       const el = tiles[i];
       const shift = p.z * DEPTH * w;
@@ -89,7 +94,6 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
       el.style.top = `${PAD + lift + ((p.y - extents.minY) / 2) * h - shift}px`;
       el.style.width = `${w}px`;
       el.style.height = `${h}px`;
-      el.firstChild.sizes = sizes;
     });
     updateZoomControls();
   }
@@ -197,16 +201,21 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
   function setBird(el, bird) {
     if (el.dataset.bird === bird) return;
     el.dataset.bird = bird;
-    const file = tileFile(bird);
-    const img = el.firstChild;
-    img.src = SMALL(file);
-    img.srcset = `${SMALL(file)} 120w, ${FULL(file)} 200w`;
+    // A board not yet on screen gets its images in attach(), once it knows
+    // which size it needs, so it never fetches a size it won't use.
+    if (!pendingAttach) el.firstChild.src = tileUrl(tileFile(bird), variant);
     el.querySelector(".tile-label").textContent = birdShort(bird);
   }
+
+  // A new board's tiles are built off-document and attached by the first
+  // sync(), once they carry their birds and states. The browser then works
+  // out their styles and layout once, instead of once bare and again dressed.
+  let pendingAttach = false;
 
   function render(nextLayout) {
     clearEffects(); // nothing from the previous board may linger
     layout = nextLayout;
+    variant = "sm"; // this board picks its own size in place()
     extents = computeExtents(layout.positions);
     tiles = layout.positions.map((p, i) => {
       const el = makeTile(i);
@@ -215,8 +224,15 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
       el.style.zIndex = String(p.z * 1000 + (p.y - extents.minY) * 20 + (p.x - extents.minX) + 10);
       return el;
     });
+    pendingAttach = true;
+  }
+
+  /** Put a freshly rendered board on screen, sized and centred. */
+  function attach() {
+    pendingAttach = false;
     surface.replaceChildren(...tiles);
-    relayout({ resetZoom: true });
+    relayout({ resetZoom: true }); // settles `variant` for this board's tile width
+    tiles.forEach((el) => { el.firstChild.src = tileUrl(tileFile(el.dataset.bird), variant); });
   }
 
   /**
@@ -245,6 +261,7 @@ export function createBoardView({ viewport, surface, zoomControls, onActivate, t
       el.setAttribute("aria-pressed", selected ? "true" : "false");
       el.setAttribute("aria-disabled", free ? "false" : "true");
     });
+    if (pendingAttach) attach();
     updateRoving();
   }
 
