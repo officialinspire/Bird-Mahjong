@@ -144,7 +144,7 @@ async function offlinePlay(browser, url) {
   await viaIndex.close();
 
   await startDifficulty(page, "hard");
-  // Zoom right in so the full-resolution tiles (srcset 200w) are used too.
+  // Zoom right in so the sharper ~200px tiles (js/ui/tile-images.js) are used too.
   await page.evaluate(() => { for (let i = 0; i < 8; i++) document.getElementById("btn-zoom-in")?.click(); });
   await page.waitForTimeout(300);
   const images = await page.evaluate(async () => {

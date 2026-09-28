@@ -40,7 +40,7 @@ export function renderBackground(container) {
     // Spread tiles evenly across the width in lanes, jittered, so they
     // never bunch up; negative delays start them mid-flight.
     const lane = (i + random(0.15, 0.85)) / count;
-    const tile = document.createElement("div");
+    const tile = document.createElement("img");
     tile.className = "float-tile";
     tile.style.setProperty("--x", `calc(${(lane * 100).toFixed(2)}% - 30px)`);
     tile.style.setProperty("--y", `${random(4, 86).toFixed(1)}%`);
@@ -51,14 +51,11 @@ export function renderBackground(container) {
     tile.style.setProperty("--dur", `${duration.toFixed(1)}s`);
     tile.style.setProperty("--delay", `${(-random(0, duration)).toFixed(1)}s`);
     tile.style.setProperty("--sway-dur", `${random(7, 12).toFixed(1)}s`);
-
-    const img = document.createElement("img");
-    img.src = `${SMALL_TILE_DIR}${file}.webp`;
-    img.alt = "";
-    img.width = 120;
-    img.height = 154;
-    img.decoding = "async";
-    tile.append(img);
+    tile.src = `${SMALL_TILE_DIR}${file}.webp`;
+    tile.alt = "";
+    tile.width = 120;
+    tile.height = 154;
+    tile.decoding = "async";
     fragment.append(tile);
   });
 

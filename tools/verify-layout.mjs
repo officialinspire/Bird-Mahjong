@@ -145,7 +145,7 @@ async function main() {
     }
     const info = await page.evaluate(() => {
       const tiles = [...document.querySelectorAll(".float-tile")];
-      return { count: tiles.length, anims: [...new Set(tiles.map((t) => getComputedStyle(t).animationName))] };
+      return { count: tiles.length, anims: [...new Set(tiles.map((t) => getComputedStyle(t).animationName.split(",")[0].trim()))] };
     });
     if (info.count < 6) fail(`motion ${c.label}: only ${info.count} background tiles`);
     else if (info.anims.length !== 1 || info.anims[0] !== c.expect) fail(`motion ${c.label}: animation ${info.anims} (want ${c.expect})`);
