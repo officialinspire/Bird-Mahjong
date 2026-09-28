@@ -15,6 +15,7 @@ import { DIFFICULTIES } from "../config.js";
 import { BIRD_IDS } from "../game/birds.js";
 import { LAYOUT_IDS } from "../game/geometry.js";
 import { tileFile, tileUrl } from "./tile-images.js";
+import { currentDayStreak } from "../player-stats.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -95,6 +96,13 @@ const dateFormat = (() => {
   try { return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }); } catch { return null; }
 })();
 const formatDate = (t) => (dateFormat ? dateFormat.format(new Date(t)) : new Date(t).toDateString());
+/** "1 h 5 min", "12 min", "45 s". */
+function formatDuration(total) {
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  if (h) return `${h} h${m ? ` ${m} min` : ""}`;
+  return m ? `${m} min` : `${total} s`;
+}
 const formatSeconds = (s) => (s === null || s === undefined ? "—" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
 
 function el(tag, className, text) {
@@ -144,12 +152,17 @@ function achievementCard(a, stats, unlocked) {
  * achievement grouped by category. `records(id)` gives js/best-scores.js's
  * { score, bestTime, games } or null.
  */
-export function renderStats(root, { stats, unlocked, records }) {
+export function renderStats(root, { stats, unlocked, records, today = "" }) {
   const earnedCount = ACHIEVEMENTS.filter((a) => unlocked[a.id]).length;
+  const streak = currentDayStreak(stats, today);
+  const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
   const summary = [
     ["Boards cleared", stats.boardsCleared.toLocaleString()],
     ["Pairs cleared", stats.pairsCleared.toLocaleString()],
     ["Best streak", stats.bestStreak > 1 ? `×${stats.bestStreak}` : "—"],
+    ["Day streak", streak ? plural(streak, "day") : "—"],
+    ["Days played", stats.daysPlayed.toLocaleString()],
+    ["Time birding", stats.totalSeconds ? formatDuration(stats.totalSeconds) : "—"],
     ["Birds seen", `${stats.species.length} / ${BIRD_IDS.length}`],
     ["Layouts cleared", `${stats.layouts.length} / ${LAYOUT_IDS.length}`],
     ["Achievements", `${earnedCount} / ${ACHIEVEMENTS.length}`],
@@ -202,7 +215,26 @@ export function renderStats(root, { stats, unlocked, records }) {
 
   const achievementsTitle = el("h2", "stats-heading", "Achievements");
   achievementsTitle.append(el("span", "achievement-group-count", `${earnedCount} of ${ACHIEVEMENTS.length} earned`));
-  root.replaceChildren(dl, el("h2", "stats-heading", "By difficulty"), table, achievementsTitle, ...sections);
+
+  // Jump links to each group: with this many achievements, scrolling alone is a chore.
+  const nav = el("nav", "achievement-nav");
+  nav.setAttribute("aria-label", "Achievement groups");
+  for (const c of CATEGORIES) {
+    const list = ACHIEVEMENTS.filter((a) => a.category === c.id);
+    const button = el("button", "achievement-chip", c.name);
+    button.type = "button";
+    button.dataset.jump = c.id;
+    button.append(el("span", "", `${list.filter((a) => unlocked[a.id]).length}/${list.length}`));
+    button.addEventListener("click", () => {
+      const target = root.querySelector(`.achievement-group[data-category="${c.id}"]`);
+      target?.scrollIntoView({ block: "start", behavior: document.documentElement.classList.contains("reduce-motion") ? "auto" : "smooth" });
+      target?.querySelector("h3")?.focus({ preventScroll: true });
+    });
+    nav.append(button);
+  }
+  for (const section of sections) section.querySelector("h3").tabIndex = -1;
+
+  root.replaceChildren(dl, el("h2", "stats-heading", "By difficulty"), table, achievementsTitle, nav, ...sections);
 }
 
 /** The "new achievements" row on the results screen. */
