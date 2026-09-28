@@ -8,9 +8,11 @@ import { getLayout } from "../js/game/geometry.js";
 
 test("difficulty tile and bird counts match their layouts", () => {
   for (const d of DIFFICULTIES) {
-    const tiles = getLayout(d.layout).positions.length;
-    assert.equal(d.tiles, tiles, `${d.id} tiles`);
-    assert.equal(d.birds, tiles / COPIES_PER_BIRD, `${d.id} birds`);
+    for (const id of d.layouts) {
+      const tiles = getLayout(id).positions.length;
+      assert.equal(d.tiles, tiles, `${d.id}/${id} tiles`);
+      assert.equal(d.birds, tiles / COPIES_PER_BIRD, `${d.id}/${id} birds`);
+    }
   }
 });
 

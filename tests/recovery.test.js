@@ -12,7 +12,8 @@ import { createRng } from "../js/game/rng.js";
 
 const SEEDS = 400;
 
-const newGame = (d, seed) => createGame(d.layout, { seed, birdPool: d.birdPool ?? undefined });
+// Seeds cycle through every layout of the difficulty.
+const newGame = (d, seed) => createGame(d.layouts[seed % d.layouts.length], { seed, birdPool: d.birdPool ?? undefined });
 
 /** Play random legal matches until the board is won or stuck. */
 function randomPlayout(state, rng) {

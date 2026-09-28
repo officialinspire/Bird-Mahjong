@@ -127,11 +127,12 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
 
   // ---------- Game flow ----------
 
-  function start(difficulty, { seed, streakBonus = true } = {}) {
+  /** A fresh board of `difficulty` on `layoutId` (default: its signature layout). */
+  function start(difficulty, { seed, streakBonus = true, layoutId = difficulty.layout } = {}) {
     const options = { streakBonus };
     if (seed !== undefined) options.seed = seed;
     if (difficulty.birdPool) options.birdPool = difficulty.birdPool;
-    begin(createGame(difficulty.layout, options), 0);
+    begin(createGame(layoutId, options), 0);
     say("Tap a free bird, then its twin. Striped tiles are blocked.");
   }
 

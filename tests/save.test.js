@@ -59,7 +59,9 @@ function sampleStates() {
   for (const d of DIFFICULTIES) {
     for (let seed = 1; seed <= 80; seed++) {
       const rng = createRng(seed * 11);
-      const fresh = newGame(d, seed, { streakBonus: seed % 2 === 0 });
+      // Every layout of the difficulty in turn.
+      const layoutId = d.layouts[seed % d.layouts.length];
+      const fresh = createGame(layoutId, { seed, birdPool: d.birdPool ?? undefined, streakBonus: seed % 2 === 0 });
       out.push(["fresh", fresh]);
       let s = playRandom(fresh, 4, rng);
       s = mismatch(s);
@@ -194,6 +196,21 @@ describe("saved game store", () => {
     assert.equal(loaded.elapsedMs, 123457);
     assert.equal(loaded.savedAt, 1000);
     assert.deepEqual(loaded.state, state);
+  });
+
+  test("a save on any of its difficulty's layouts restores, on another difficulty's is discarded", () => {
+    for (const d of DIFFICULTIES) {
+      for (const layoutId of d.layouts) {
+        const storage = memoryStorage();
+        const state = playRandom(createGame(layoutId, { seed: 4, birdPool: d.birdPool ?? undefined }), 3, createRng(4));
+        const store = createSavedGame(storage);
+        store.save({ difficultyId: d.id, state, elapsedMs: 10 });
+        assert.equal(store.load()?.state.layoutId, layoutId, `${d.id}/${layoutId}`);
+        const other = DIFFICULTIES.find((x) => x !== d);
+        store.save({ difficultyId: other.id, state, elapsedMs: 10 });
+        assert.equal(store.load(), null, `${layoutId} under ${other.id}`);
+      }
+    }
   });
 
   test("a won board is never saved, and saving one clears the old save", () => {

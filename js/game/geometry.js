@@ -21,6 +21,16 @@ function block(x, y, cols, rows, z) {
 /** A row of `cols` tiles starting at (x, y) on layer z. */
 const row = (x, y, cols, z) => block(x, y, cols, 1, z);
 
+/** The outline of a cols × rows block (its outer ring of tiles). */
+function ring(x, y, cols, rows, z) {
+  return block(x, y, cols, rows, z).filter(
+    (t) => t.x === x || t.y === y || t.x === x + (cols - 1) * 2 || t.y === y + (rows - 1) * 2
+  );
+}
+
+// Each difficulty rotates through several layouts with the same tile count
+// (js/config.js), so every board of a difficulty scores and plays alike but
+// looks and opens up differently.
 const RAW_LAYOUTS = {
   // Easy · 24 tiles. A low diamond (rows of 2-4-6-4-2) with a small raised
   // centre: 2×2 on layer 1 and a pair straddling it on layer 2.
@@ -64,6 +74,123 @@ const RAW_LAYOUTS = {
       ...block(6, 2, 2, 2, 3),
       { x: 6, y: 3, z: 4 },
       { x: 8, y: 3, z: 4 },
+    ],
+  },
+
+  // ----- Easy alternates (24 tiles) -----
+
+  // A ring of 6×4 around an open pond, its top and bottom banks raised.
+  pond: {
+    name: "Pond",
+    tiles: [
+      ...row(0, 0, 6, 0),
+      ...row(0, 6, 6, 0),
+      { x: 0, y: 2, z: 0 }, { x: 0, y: 4, z: 0 },
+      { x: 10, y: 2, z: 0 }, { x: 10, y: 4, z: 0 },
+      ...row(2, 0, 4, 1),
+      ...row(2, 6, 4, 1),
+    ],
+  },
+  // Two long hedges of eight, each with an off-centre crest of three and a
+  // single tile on top.
+  hedgerow: {
+    name: "Hedgerow",
+    tiles: [
+      ...row(0, 0, 8, 0),
+      ...row(5, 0, 3, 1),
+      { x: 7, y: 0, z: 2 },
+      ...row(0, 4, 8, 0),
+      ...row(3, 4, 3, 1),
+      { x: 5, y: 4, z: 2 },
+    ],
+  },
+
+  // ----- Medium alternates (40 tiles) -----
+
+  // A rounded hill: 6×4 base, a 5×3 layer offset by half a tile, one summit.
+  hilltop: {
+    name: "Hilltop",
+    tiles: [
+      ...block(0, 0, 6, 4, 0),
+      ...block(1, 1, 5, 3, 1),
+      { x: 5, y: 3, z: 2 },
+    ],
+  },
+  // A plus-shaped crossing whose east–west road climbs to a 2×2 rise.
+  crossroads: {
+    name: "Crossroads",
+    tiles: [
+      ...block(6, 0, 2, 8, 0),
+      ...block(0, 6, 3, 2, 0),
+      ...block(10, 6, 3, 2, 0),
+      ...block(4, 6, 4, 2, 1),
+      ...block(6, 6, 2, 2, 2),
+    ],
+  },
+
+  // ----- Hard alternates (60 tiles) -----
+
+  // A wide, low canopy: 10×3 base under three half-offset tiers.
+  canopy: {
+    name: "Canopy",
+    tiles: [
+      ...block(0, 0, 10, 3, 0),
+      ...block(1, 1, 9, 2, 1),
+      ...row(2, 2, 8, 2),
+      ...row(6, 2, 4, 3),
+    ],
+  },
+  // A stepped pyramid: every layer offset by half a tile from the one below.
+  summit: {
+    name: "Summit",
+    tiles: [
+      ...block(0, 0, 8, 4, 0),
+      ...block(1, 1, 6, 3, 1),
+      ...block(2, 2, 4, 2, 2),
+      ...row(4, 3, 2, 3),
+    ],
+  },
+
+  // ----- Expert (80 tiles, all 20 birds) -----
+
+  // A vast four-tier forest floor, 10×4 at the base.
+  wildwood: {
+    name: "Wildwood",
+    tiles: [
+      ...block(0, 0, 10, 4, 0),
+      ...block(1, 1, 9, 3, 1),
+      ...block(4, 2, 6, 2, 2),
+      { x: 9, y: 3, z: 3 },
+    ],
+  },
+  // Two four-tier towers joined by a raised three-layer bridge.
+  "twin-towers": {
+    name: "Twin Towers",
+    tiles: [
+      ...block(0, 0, 4, 4, 0),
+      ...block(1, 1, 3, 3, 1),
+      ...block(2, 2, 2, 2, 2),
+      { x: 3, y: 3, z: 3 },
+      ...block(8, 0, 2, 4, 0),
+      ...block(8, 0, 2, 4, 1),
+      ...block(8, 2, 2, 2, 2),
+      ...block(12, 0, 4, 4, 0),
+      ...block(13, 1, 3, 3, 1),
+      ...block(14, 2, 2, 2, 2),
+      { x: 15, y: 3, z: 3 },
+    ],
+  },
+  // A walled ring, two layers high with a turret on each corner, around a
+  // stepped keep.
+  fortress: {
+    name: "Fortress",
+    tiles: [
+      ...ring(0, 0, 10, 6, 0),
+      ...ring(0, 0, 10, 6, 1),
+      { x: 0, y: 0, z: 2 }, { x: 18, y: 0, z: 2 }, { x: 0, y: 10, z: 2 }, { x: 18, y: 10, z: 2 },
+      ...block(6, 4, 4, 2, 0),
+      ...block(6, 4, 4, 2, 1),
+      ...block(8, 4, 2, 2, 2),
     ],
   },
 };

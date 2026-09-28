@@ -2,16 +2,23 @@
 
 import { EASY_BIRDS } from "./game/birds.js";
 
-// Difficulty levels. `layout` is a preset in js/game/geometry.js; tiles and
-// birds are shown on the difficulty picker and must equal that layout's tile
-// count and tiles / 4 (four copies of each bird) — tests/config.test.js checks.
+// Difficulty levels. `layouts` are presets in js/game/geometry.js that a
+// difficulty rotates through (js/layout-rotation.js): each new board takes a
+// different one. They all have the same tile count, so tiles and birds (shown
+// on the difficulty picker) hold for every board: tiles is each layout's tile
+// count and birds is tiles / 4 (four copies of each bird) —
+// tests/config.test.js checks. `layout` is the signature layout (the first in
+// `layouts`), used for `?seed=` replays and tests.
 // `birdPool` limits which birds a difficulty draws from (null = all 20).
 
-export const DIFFICULTIES = [
-  { id: "easy",   name: "Easy",   habitat: "Meadow",      layout: "meadow",      tiles: 24, birds: 6,  birdPool: EASY_BIRDS, icon: "11-american-robin" },
-  { id: "medium", name: "Medium", habitat: "Twin Groves", layout: "twin-groves", tiles: 40, birds: 10, birdPool: null,       icon: "09-blue-jay" },
-  { id: "hard",   name: "Hard",   habitat: "Old Growth",  layout: "old-growth",  tiles: 60, birds: 15, birdPool: null,       icon: "06-great-horned-owl" },
-];
+const difficulty = (d) => Object.freeze({ ...d, layout: d.layouts[0], layouts: Object.freeze(d.layouts) });
+
+export const DIFFICULTIES = Object.freeze([
+  difficulty({ id: "easy",   name: "Easy",   habitat: "Meadowlands", layouts: ["meadow", "pond", "hedgerow"],            tiles: 24, birds: 6,  birdPool: EASY_BIRDS, icon: "11-american-robin" }),
+  difficulty({ id: "medium", name: "Medium", habitat: "Woodland",    layouts: ["twin-groves", "hilltop", "crossroads"],  tiles: 40, birds: 10, birdPool: null,       icon: "09-blue-jay" }),
+  difficulty({ id: "hard",   name: "Hard",   habitat: "Old Growth",  layouts: ["old-growth", "canopy", "summit"],        tiles: 60, birds: 15, birdPool: null,       icon: "06-great-horned-owl" }),
+  difficulty({ id: "expert", name: "Expert", habitat: "Wilderness",  layouts: ["wildwood", "twin-towers", "fortress"],   tiles: 80, birds: 20, birdPool: null,       icon: "01-bald-eagle" }),
+]);
 
 export const SMALL_TILE_DIR = "assets/tiles-sm/";
 

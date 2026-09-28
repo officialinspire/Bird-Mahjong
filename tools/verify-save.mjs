@@ -84,7 +84,7 @@ async function duringPlay(browser, url) {
   const before = await readGame(page);
   const menu = await reloadToMenu(page);
   const envelope = await savedEnvelope(page);
-  check(menu.enabled && /Medium · 17 pairs left · 330 pts/.test(menu.detail), "after reload, Continue offers the saved board", menu.detail);
+  check(menu.enabled && /Medium · Twin Groves · 17 pairs left · 330 pts/.test(menu.detail), "after reload, Continue offers the saved board", menu.detail);
   check(envelope && envelope.elapsedMs >= 1000, `elapsed time was saved (${envelope && envelope.elapsedMs} ms)`);
 
   await page.locator("#btn-continue").tap();
@@ -236,7 +236,7 @@ async function pauseToMenu(browser, url) {
   await page.click("#btn-pause");
   await page.click("#btn-pause-menu");
   const menu = await page.evaluate(() => ({ enabled: !document.getElementById("btn-continue").disabled, detail: document.getElementById("continue-detail").textContent }));
-  check(menu.enabled && /Hard · 26 pairs left/.test(menu.detail), "the menu offers Continue straight away", menu.detail);
+  check(menu.enabled && /Hard · Old Growth · 26 pairs left/.test(menu.detail), "the menu offers Continue straight away", menu.detail);
   if (SHOT_DIR) await page.screenshot({ path: path.join(SHOT_DIR, "save-menu-continue.png") });
   await page.click("#btn-continue");
   await page.waitForSelector("#board .tile:not([hidden])");

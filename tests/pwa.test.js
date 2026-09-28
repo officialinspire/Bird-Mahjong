@@ -71,7 +71,11 @@ test("every module the game imports is precached", () => {
 
 test("every file index.html loads is relative and precached", () => {
   const html = read("index.html");
-  const refs = [...html.matchAll(/<(?:link|script|img)\b[^>]*?\s(?:href|src)="([^"]+)"/g)].map((m) => m[1]);
+  // rel="canonical" names the public URL for search and link previews; it
+  // is never loaded, so it is the one absolute link allowed.
+  const refs = [...html.matchAll(/<(?:link|script|img)\b[^>]*?\s(?:href|src)="([^"]+)"/g)]
+    .filter((m) => !/\brel="canonical"/.test(m[0]))
+    .map((m) => m[1]);
   assert.ok(refs.length > 10);
   for (const ref of refs) {
     assert.ok(!ref.startsWith("/") && !/^https?:/.test(ref), `${ref} is relative`);
