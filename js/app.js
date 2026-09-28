@@ -17,6 +17,8 @@ import { createGameController } from "./ui/game-controller.js";
 import { createSound } from "./ui/sound.js";
 import { createIntro } from "./ui/intro.js";
 import { warmTiles } from "./ui/tile-images.js";
+import { createBoardTracker, createPlayerStats } from "./player-stats.js";
+import { createToaster, renderEarned, renderStats } from "./ui/achievements-view.js";
 import { setupPwa } from "./pwa.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -28,6 +30,10 @@ const { storage, persistent } = openStorage();
 const bests = createBestScores(storage);
 const saved = createSavedGame(storage);
 const rotation = createLayoutRotation(storage);
+// Lifetime stats and achievements. Players with clears from before
+// achievements existed are credited for them on first run.
+const player = createPlayerStats(storage, { bests });
+player.sync();
 
 const state = {
   screen: "start",
@@ -41,10 +47,12 @@ function showScreen(name) {
   const next = document.getElementById(`screen-${name}`);
   if (!next) return;
   if (name === "difficulty") renderDifficulties(); // fresh best scores
+  if (name === "stats") renderStats($("#stats-body"), { stats: player.stats(), unlocked: player.unlocked(), records: (id) => bests.get(id) });
   const leaving = state.screen;
   state.screen = name; // set first: closing the pause dialog checks it
   for (const dialog of ["#pause-dialog", "#new-game-dialog"]) if ($(dialog).open) $(dialog).close();
   if (leaving === "game" && name !== "game") {
+    toaster.clear();
     game.pause();
     game.settle(); // no animation or sparkle survives a screen change
     autosave(); // keep the paused clock
@@ -175,7 +183,38 @@ const game = createGameController({
   onWon: recordWin,
   onWin: showResults,
   onChange: (snap) => saved.save({ difficultyId: state.difficulty, ...snap }),
+  onEvent: onGameEvent,
 });
+
+// ---------- Achievements ----------
+//
+// The tracker counts what happens on the board in progress; after each event
+// the store folds it into the lifetime stats and reports anything newly
+// earned, which shows as a toast now and on the results screen later.
+// Achievements only ever observe the game: a storage problem or a bug here
+// can't interrupt play (the controller also guards onEvent).
+
+const tracker = createBoardTracker();
+const toaster = createToaster($("#achievement-toast"));
+const board = { continued: false, earned: [] };
+
+function newBoard({ continued = false, state: s = null } = {}) {
+  tracker.reset(s ? { mismatches: s.mismatches, hints: s.hintsUsed } : {});
+  board.continued = continued;
+  board.earned = [];
+  toaster.clear();
+}
+
+function earn(list, { toast = true } = {}) {
+  if (!list.length) return;
+  board.earned.push(...list);
+  if (toast) toaster.show(list);
+}
+
+function onGameEvent(type, detail) {
+  tracker.on(type, detail);
+  earn(player.recordBoard(tracker.counters()));
+}
 
 // `?seed=123` replays a specific first board (handy for sharing and tests)
 // on the difficulty's signature layout, or on `?layout=<id>` if that layout
@@ -206,6 +245,7 @@ function startGame(difficultyId) {
   // Show the screen first so the board can measure its viewport.
   showScreen("game");
   game.start(d, { seed: pendingSeed, streakBonus: state.settings.streakBonus, layoutId });
+  newBoard();
   pendingSeed = undefined;
   pendingLayout = undefined;
 }
@@ -247,6 +287,7 @@ function continueGame() {
   $("#game-difficulty").textContent = boardLabel(d, save.state.layoutId);
   showScreen("game");
   game.load(save.state, save.elapsedMs);
+  newBoard({ continued: true, state: save.state });
 }
 
 /**
@@ -257,6 +298,18 @@ let recorded = null;
 function recordWin(summary) {
   saved.clear(); // a finished board isn't something to continue
   recorded = { summary, record: bests.record(state.difficulty, summary) };
+  try {
+    // The results screen shows these (with any earned during the board), so no toast.
+    earn(player.recordWin({
+      ...summary,
+      difficultyId: state.difficulty,
+      undos: tracker.undos,
+      continued: board.continued,
+      hour: new Date().getHours(),
+    }), { toast: false });
+  } catch (error) {
+    console.warn("Couldn't record achievements:", error);
+  }
 }
 
 function showResults(summary) {
@@ -280,6 +333,7 @@ function showResults(summary) {
     `Time is just for you — it never affects your score.${isNewBestTime && previous ? " That's your fastest yet." : ""}`;
   $("#result-cleared").textContent = `${d.name} boards cleared: ${best.games}`;
   $("#result-next").textContent = `Play Again for a new ${d.name} layout — ${d.layouts.length} to rotate through.`;
+  renderEarned($("#result-earned"), board.earned);
   showScreen("results");
 }
 

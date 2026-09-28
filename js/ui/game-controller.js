@@ -30,8 +30,16 @@ const formatTime = (seconds) => {
  * `onChange(snapshot)` runs after every change to the board (match, undo,
  * selection, hint, shuffle, restart) while a game is in progress, so the app
  * can autosave. `snapshot` is { state, elapsedMs }.
+ *
+ * `onEvent(type, detail)` reports what the player does, for achievements:
+ *   "blocked", "mismatch" { a, b } (the two birds), "match" { seconds, streak }
+ *   (board time, pauses excluded), "undo", "hint", "shuffle", "restart".
+ * It is purely an observer: nothing it does can change the game.
  */
-export function createGameController({ elements, reducedMotion, onWin, onWon = () => {}, onChange = () => {}, sound = null }) {
+export function createGameController({ elements, reducedMotion, onWin, onWon = () => {}, onChange = () => {}, onEvent = () => {}, sound = null }) {
+  const report = (type, detail) => {
+    try { onEvent(type, detail); } catch (error) { console.warn("onEvent failed:", error); }
+  };
   const play = (name, opts) => sound?.play(name, opts);
   const view = createBoardView({
     viewport: elements.viewport,
@@ -183,6 +191,7 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
       case "blocked": {
         view.nudge(index);
         play("blocked");
+        report("blocked");
         const covered = isCovered(layout.links, state.removed, index);
         say(covered ? `That ${name} is covered by another tile.` : `That ${name} is blocked on both sides.`, "warn");
         return;
@@ -204,6 +213,7 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
         say(`${birdName(state.birds[previous])} and ${name} don't match. ${name} selected.`, "warn");
         // (selectTile resets the streak on a mismatch; nothing is deducted.)
         play("mismatch");
+        report("mismatch", { a: state.birds[previous], b: state.birds[index] });
         break;
       case "matched":
         state = next;
@@ -219,6 +229,7 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
         // The bird's own call if it has an approved clip, otherwise a chirp
         // pitched slightly per bird so repeated matches don't drone.
         play("match", { bird: state.birds[index], pitch: 0.9 + (BIRD_IDS.indexOf(state.birds[index]) % 5) * 0.05 });
+        report("match", { seconds: seconds(), streak: state.streak });
         break;
       default:
         return;
@@ -280,7 +291,12 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
 
   function summary() {
     const secs = Math.floor(seconds());
+    const last = state.history[state.history.length - 1];
     return {
+      layoutId: state.layoutId,
+      restarts: state.restarts,
+      birds: [...new Set(state.birds)],
+      lastBird: last ? state.birds[last[0]] : null,
       seconds: secs,
       time: formatTime(secs),
       pairs: layout.positions.length / 2,
@@ -299,6 +315,7 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
     const result = useHint(state);
     state = result.state;
     hint = result.pair;
+    report("hint");
     if (hint) {
       play("hint");
       say(`Hint: the two ${pluralName(birdName(state.birds[hint[0]]))} marked “?” match.`);
@@ -318,6 +335,7 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
       state = next;
       sync();
       play("shuffle");
+      report("shuffle");
       say("Shuffled! There's a way to finish from here — Hint will show it.", "good");
       focusBoard();
     } else {
@@ -328,6 +346,7 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
   function restart() {
     if (!state || finished) return;
     state = restartBoard(state);
+    report("restart");
     hint = null;
     view.clearEffects();
     unlockInput();
@@ -343,6 +362,7 @@ export function createGameController({ elements, reducedMotion, onWin, onWon = (
     if (!state || finished || state.history.length === 0) return;
     const before = state.score;
     state = undo(state);
+    report("undo");
     hint = null;
     view.clearEffects(); // no "+120" or sparkle for a pair that's back
     unlockInput();       // …and the restored tiles can be tapped straight away

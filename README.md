@@ -107,6 +107,9 @@ js/settings.js             settings persisted in localStorage
 js/storage.js              one safe wrapper around localStorage (memory fallback)
 js/saved-game.js           the autosaved board (Continue)
 js/best-scores.js          best score, fastest time and clears per difficulty
+js/achievements.js         achievement definitions (pure tests over lifetime stats)
+js/player-stats.js         lifetime stats, earned achievements, per-board tracker
+js/ui/achievements-view.js badges (SVG medals, rosettes, trophies), Stats screen, toasts
 js/layout-rotation.js      which layout each difficulty's next board uses
 js/game/save-format.js     game state <-> JSON, with strict validation
 js/background.js           slowly drifting bird tiles behind the UI
@@ -126,6 +129,7 @@ tests/                     unit tests for the game logic (node --test)
 tools/verify-layout.mjs    responsive layout checks (Playwright)
 tools/verify-play.mjs      touch and mouse play checks (Playwright)
 tools/verify-layouts.mjs   every layout on phone/desktop, played to the end, and the rotation (Playwright)
+tools/verify-achievements.mjs  achievements and Stats in real play (Playwright)
 tools/verify-perf.mjs      loading and smoothness: modulepreload, tile warm-up, first-frame boards (Playwright)
 tools/verify-save.mjs      autosave / Continue checks with real reloads (Playwright)
 tools/verify-polish.mjs    keyboard, labels, sound, animation, contrast checks (Playwright)
@@ -284,6 +288,41 @@ zooming out keeps it rather than reloading.
 
 `?seed=123` in the URL replays a specific first board, which is handy for
 sharing a deal or reproducing a bug.
+
+## Stats and achievements
+
+**Stats & Achievements** on the menu shows lifetime totals (boards and pairs
+cleared, best streak, birds seen, layouts cleared), each difficulty's record
+(clears, best score, fastest time), and 35 achievements in five groups:
+
+| Group | Achievements |
+|-------|--------------|
+| Boards cleared | First Flight (1), Fledgling (10), Birder (25), Flock Leader (50), Century Flyer (100) |
+| Woodland firsts (trophies) | Meadowlands Mastered, Woodland Wanderer, Old Growth Ranger, Into the Wilderness (first clear on Easy, Medium, Hard, Expert); Full Migration (all four) |
+| Field progress | Life List (all 20 birds), Habitat Hopper (all 12 layouts), Pair Bonding (250 pairs), Mates for Life (1,000), In the Groove (×12 streak), Sharp Eyes (10 hint-free clears), Flawless Flight, Eagle Eye (flawless Hard/Expert), Wilderness Veteran (5 Expert clears) |
+| Swift wings | Swift (Easy < 1:00), Kingfisher Dive (Medium < 2:00), Osprey Strike (Hard < 3:30), Peregrine Stoop (Expert < 5:00), Quick Wings (5 pairs in 10 s) |
+| Just for fun | Crow or Raven? (try to pair them), Birdbrain (10 mismatches on a board), Woodpecker Technique (15 blocked taps), Second Thoughts (10 undos), Borrowed Binoculars (10 hints), Ruffled Feathers (a Shuffle), Back to the Nest (a Restart), Nest Egg (clear a continued board), Night Owl (00:00–04:59), Early Bird (05:00–07:59), Gobble Gobble (finish on Wild Turkeys) |
+
+Each one has a badge drawn in the game's palette: a medal, rosette or trophy
+in bronze, silver, gold, leaf, sky or cardinal, with that bird's tile art in a
+round window. Locked ones are faded, hatched and padlocked like blocked tiles,
+and progressive ones show a progress bar. Earned cards show a quip and the date.
+
+**How it works.** `js/achievements.js` defines each achievement as a pure test
+over the lifetime stats (`js/player-stats.js`), so unlocking is deterministic
+and fully unit-tested. The game controller reports events (match, mismatch,
+blocked tap, undo, hint, shuffle, restart) through `onEvent`, purely as an
+observer. A per-board tracker folds them into the stats, and anything newly
+earned mid-game appears as a toast; everything earned on a board is listed on
+the results screen. Board time for speed achievements excludes pauses, as the
+results screen's time does. Flawless means one sitting with no mismatch, hint,
+undo, shuffle or restart (a board continued from a save doesn't count).
+
+Stats only grow, earned achievements are stored with their date separately
+from the stats, and all stored data is sanitised on read, so corrupt or
+blocked storage never breaks play. Players who cleared boards before
+achievements existed are credited from their best-score records on first run.
+The saved-game format is unchanged.
 
 ## Loading fast and staying smooth
 
@@ -498,6 +537,8 @@ server.
 |----------------------|------|
 | `inspireBirdMahjong:v1:save` | The board in progress: difficulty, every tile's bird, removed tiles, selected tile, score, streak, undo history (with each pair's points), hint/shuffle/restart counts, the verified route, the original deal, and elapsed time |
 | `inspireBirdMahjong:v1:bests` | Per difficulty: best score, fastest time, and boards cleared |
+| `inspireBirdMahjong:v1:stats` | Lifetime stats for achievements: boards and pairs cleared, clears and fastest time per difficulty, layouts and birds cleared, best streak, and per-board records (most mismatches, blocked taps, undos, hints) |
+| `inspireBirdMahjong:v1:achievements` | Each earned achievement and when it was first earned |
 | `inspireBirdMahjong:v1:layouts` | Per difficulty: the layouts still to come this rotation, and the last one played |
 | `inspireBirdMahjong:v1:settings` | Motion, background birds, tile labels, streak bonus |
 

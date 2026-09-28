@@ -22,7 +22,7 @@
 // Paths are relative to the worker's scope, so the same file works at a
 // domain root and under /Bird-Mahjong/ on GitHub Pages.
 
-const VERSION = "3118ca198bc0";
+const VERSION = "5f51df7b5f47";
 const CACHE_PREFIX = "bird-mahjong-";
 const CACHE = `${CACHE_PREFIX}${VERSION}`;
 const RUNTIME = `${CACHE_PREFIX}runtime`;
@@ -33,6 +33,7 @@ const PRECACHE = [
   "index.html",
   "manifest.webmanifest",
   "css/app.css",
+  "js/achievements.js",
   "js/app.js",
   "js/background.js",
   "js/best-scores.js",
@@ -46,10 +47,12 @@ const PRECACHE = [
   "js/game/save-format.js",
   "js/game/score.js",
   "js/layout-rotation.js",
+  "js/player-stats.js",
   "js/pwa.js",
   "js/saved-game.js",
   "js/settings.js",
   "js/storage.js",
+  "js/ui/achievements-view.js",
   "js/ui/bird-names.js",
   "js/ui/board-view.js",
   "js/ui/game-controller.js",
