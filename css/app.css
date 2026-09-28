@@ -1182,3 +1182,155 @@ kbd {
 html:has(body[data-screen="game"]),
 body[data-screen="game"] { overscroll-behavior: none; }
 .setting-note { margin: 8px 0 0; }
+
+/* ---------- Achievements: badges, Stats screen, results row, toast ----------
+   Badges use the tile palette: bronze, silver and gold awards, plus leaf, sky
+   and cardinal for the lighter-hearted ones. Each shows the bird's own tile
+   art in a round window. Locked ones are faded and hatched like blocked tiles. */
+
+.badge {
+  --tier-edge: #9a6a35; --tier-face: #d39a5c; --tier-rim: #7a4f22; --tier-ribbon: #3d7a35; --tier-ribbon-alt: #2b5d25;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 64px;
+  aspect-ratio: 100 / 120;
+}
+.badge[data-tier="silver"] { --tier-edge: #8f98a3; --tier-face: #dfe4e9; --tier-rim: #66707c; --tier-ribbon: #235f87; --tier-ribbon-alt: #1b4a69; }
+.badge[data-tier="gold"] { --tier-edge: #b98a1f; --tier-face: #f3cf5f; --tier-rim: #8a6412; --tier-ribbon: #b3312b; --tier-ribbon-alt: #8e2520; }
+.badge[data-tier="leaf"] { --tier-edge: #2b5d25; --tier-face: #8dbb6f; --tier-rim: #2b5d25; --tier-ribbon: #d9bf86; --tier-ribbon-alt: #b8955a; }
+.badge[data-tier="sky"] { --tier-edge: #235f87; --tier-face: #9cc8e6; --tier-rim: #235f87; --tier-ribbon: #d9bf86; --tier-ribbon-alt: #b8955a; }
+.badge[data-tier="cardinal"] { --tier-edge: #8e2520; --tier-face: #e0776f; --tier-rim: #8e2520; --tier-ribbon: #2f2a20; --tier-ribbon-alt: #5f5645; }
+.badge--sm { width: 40px; }
+.badge--lg { width: 96px; }
+
+.badge-frame { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.badge-frame .b-ribbon { fill: var(--tier-ribbon); }
+.badge-frame .b-ribbon--alt { fill: var(--tier-ribbon-alt); }
+.badge-frame .b-edge { fill: var(--tier-edge); }
+.badge-frame .b-face { fill: var(--tier-face); stroke: var(--tier-edge); stroke-width: 1.5; }
+.badge-frame .b-rim { fill: var(--paper); stroke: var(--tier-rim); stroke-width: 3; }
+.badge-frame .b-shine { fill: none; stroke: rgb(255 255 255 / 0.55); stroke-width: 3; stroke-linecap: round; }
+
+/* The bird: its tile art, cropped to the round window (x 22–78, y 22–78 of 100×120). */
+.badge-window {
+  position: absolute;
+  left: 22%;
+  top: calc(22% * 100 / 120);
+  width: 56%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--ivory);
+}
+.badge--trophy .badge-window { left: 26%; top: calc(16% * 100 / 120); width: 48%; }
+.badge-window img { width: 170%; max-width: none; margin: -24% 0 0 -35%; }
+
+.badge.is-locked .badge-frame,
+.badge.is-locked .badge-window img { filter: grayscale(1) contrast(0.85); opacity: 0.5; }
+.badge.is-locked .badge-window::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(135deg, rgb(47 42 32 / 0.22) 0 2px, transparent 2px 6px);
+}
+.badge-lock {
+  position: absolute;
+  right: 4%;
+  bottom: 18%;
+  width: 34%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 2px solid var(--bark-soft);
+  color: var(--bark-soft);
+}
+.badge-lock svg { width: 60%; fill: currentColor; }
+
+/* Stats screen */
+.stats { display: grid; gap: 14px; }
+.stats-heading { font-size: 1.35rem; color: var(--leaf-dark); margin-top: 10px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.stats-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.stats-summary div { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--paper); border: 1px solid rgb(217 191 134 / 0.6); }
+.stats-summary dt { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bark-soft); }
+.stats-summary dd { margin: 2px 0 0; font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--bark); font-variant-numeric: tabular-nums; }
+
+.stats-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.stats-table th, .stats-table td { padding: 8px 6px; text-align: right; border-bottom: 1px solid var(--ivory-deep); }
+.stats-table th:first-child { text-align: left; color: var(--leaf-dark); }
+.stats-table thead th { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bark-soft); }
+
+.achievement-group h3 { font-family: var(--font-display); font-size: 1.15rem; color: var(--bark); display: flex; align-items: baseline; gap: 10px; margin: 8px 0 2px; }
+.achievement-group-count { font-family: var(--font); font-size: 0.8rem; font-weight: 700; color: var(--sky-ink); }
+.achievement-group-blurb { font-size: 0.85rem; color: var(--bark-soft); margin-bottom: 8px; }
+.achievement-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.achievement {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  border: 2px solid var(--ivory-deep);
+}
+.achievement.is-earned { border-color: var(--rim); background: linear-gradient(90deg, #fff8e6, var(--paper) 60%); }
+.achievement-body { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.achievement-name { color: var(--leaf-dark); font-size: 1rem; }
+.achievement.is-locked .achievement-name { color: var(--bark); }
+.achievement-text { font-size: 0.85rem; color: var(--bark-soft); }
+.achievement-quip { font-size: 0.85rem; color: var(--bark); }
+.achievement-date, .achievement-count { font-size: 0.75rem; font-weight: 700; color: var(--sky-ink); }
+.achievement-progress {
+  display: block;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--ivory-deep);
+  overflow: hidden;
+}
+.achievement-progress > span { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: var(--leaf); }
+
+/* Results: the achievements earned on this board */
+.results-earned { width: 100%; display: grid; gap: 8px; justify-items: center; margin-top: 6px; padding: 10px; border-radius: var(--radius-sm); background: #fff8e6; border: 1px solid var(--rim); }
+.results-earned[hidden] { display: none; }
+.earned-title { font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.78rem; color: var(--leaf-dark); }
+.earned-title::before { content: "🏆 "; }
+.earned-list { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px 10px; }
+.earned-item { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 0.85rem; line-height: 1.2; color: var(--bark); text-align: left; }
+
+/* Toast: slides in at the top during play; never covers the controls for long. */
+.achievement-toast {
+  position: fixed;
+  z-index: 50;
+  left: 50%;
+  top: max(10px, env(safe-area-inset-top));
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.achievement-toast[hidden] { display: none; }
+.toast-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  border: 2px solid var(--rim);
+  box-shadow: 0 12px 36px rgb(47 42 32 / 0.28);
+  animation: toast-in 320ms ease-out;
+}
+@keyframes toast-in { from { opacity: 0; transform: translateY(-12px); } }
+.reduce-motion .toast-card { animation: none; }
+.toast-text { display: grid; min-width: 0; }
+.toast-text small { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--leaf-dark); }
+.toast-text strong { font-family: var(--font-display); font-size: 1.1rem; color: var(--bark); }
+.toast-quip { font-size: 0.82rem; color: var(--bark-soft); }
+
+@media (min-width: 700px) {
+  .stats-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .achievement-list { grid-template-columns: 1fr 1fr; }
+  .badge--md { width: 72px; }
+}
