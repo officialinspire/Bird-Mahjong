@@ -20,6 +20,7 @@ import { warmTiles } from "./ui/tile-images.js";
 import { createBoardTracker, createPlayerStats, localDay } from "./player-stats.js";
 import { createToaster, renderEarned, renderStats } from "./ui/achievements-view.js";
 import { setupPwa } from "./pwa.js";
+import { initAnalytics, setAnalyticsContext, trackGameEvent } from "./analytics.js";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -40,6 +41,9 @@ const state = {
   difficulty: DIFFICULTIES[0].id,
   settings: loadSettings(storage),
 };
+
+setAnalyticsContext(() => ({ difficulty: state.difficulty }));
+initAnalytics();
 
 // ---------- Screens ----------
 
@@ -211,6 +215,7 @@ function earn(list, { toast = true } = {}) {
   if (!list.length) return;
   board.earned.push(...list);
   if (toast) toaster.show(list);
+  for (const achievement of list) trackGameEvent("achievement_unlocked", { achievement: achievement.id });
 }
 
 function onGameEvent(type, detail) {
@@ -248,6 +253,7 @@ function startGame(difficultyId) {
   showScreen("game");
   game.start(d, { seed: pendingSeed, streakBonus: state.settings.streakBonus, layoutId });
   newBoard();
+  trackGameEvent("game_started", { difficulty: d.id, layout: layoutId });
   pendingSeed = undefined;
   pendingLayout = undefined;
 }
@@ -290,6 +296,7 @@ function continueGame() {
   showScreen("game");
   game.load(save.state, save.elapsedMs);
   newBoard({ continued: true, state: save.state });
+  trackGameEvent("game_started", { difficulty: d.id, layout: save.state.layoutId, continued: "true" });
 }
 
 /**
@@ -300,6 +307,8 @@ let recorded = null;
 function recordWin(summary) {
   saved.clear(); // a finished board isn't something to continue
   recorded = { summary, record: bests.record(state.difficulty, summary) };
+  trackGameEvent("game_completed", { score: summary.score, high_score: recorded.record.best.score, duration_seconds: summary.seconds, layout: summary.layoutId });
+  if (recorded.record.isNewBest) trackGameEvent("high_score_achieved", { score: summary.score, high_score: recorded.record.best.score });
   try {
     // The results screen shows these (with any earned during the board), so no toast.
     // Dates and hours are the player's own local calendar and clock.
@@ -316,6 +325,7 @@ function recordWin(summary) {
       at: now.getTime(),
     }), { toast: false });
   } catch (error) {
+    trackGameEvent("error_encountered", { error_type: "achievement_record", error_name: error instanceof Error ? error.name : "UnknownError" }, "achievement-record");
     console.warn("Couldn't record achievements:", error);
   }
 }
