@@ -22,7 +22,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
-import { INTRO_SEEN_KEY, launchBrowser, serve, ROOT, isBenignFailure, skipIntro } from "./lib/serve.mjs";
+import { INTRO_SEEN_KEY, launchBrowser, serve, ROOT, isBenignFailure, skipIntro, routeAnalytics } from "./lib/serve.mjs";
 import { SEED, playPairs, solutionFor, startDifficulty } from "./lib/play.mjs";
 import { precacheList } from "./build-sw.mjs";
 
@@ -82,6 +82,7 @@ async function installability(url) {
     ...DESKTOP,
     ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
   });
+  await routeAnalytics(context);
   await context.addInitScript(skipIntro, INTRO_SEEN_KEY); // Start → menu (the intro has its own suite)
   try {
     const page = context.pages()[0] || (await context.newPage());
@@ -101,6 +102,7 @@ async function installability(url) {
     // The Install button appears when the browser offers installation
     // (beforeinstallprompt) and hands off to the browser's own prompt.
     await page.click("#screen-start");
+    await page.waitForFunction(() => !document.querySelector("#btn-install")?.hidden, null, { timeout: 5000 }).catch(() => {});
     const offeredByChromium = await page.isVisible("#btn-install");
     check(offeredByChromium, "Chromium itself offered installation, so Install app is showing on the menu");
     // Click through with a stand-in event so the test never opens a real
