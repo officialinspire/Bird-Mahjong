@@ -23,3 +23,6 @@ jobs:
       - run: npm install --no-package-lock --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: npm test
+      - name: Complete audio, intro and release checks even if PWA QA fails
+        if: ${{ !cancelled() }}
+        run: npm run test:music && npm run test:calls && npm run test:intro && npm run test:release

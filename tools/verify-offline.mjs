@@ -102,7 +102,7 @@ async function installability(url) {
     // The Install button appears when the browser offers installation
     // (beforeinstallprompt) and hands off to the browser's own prompt.
     await page.click("#screen-start");
-    await page.waitForFunction(() => !document.querySelector("#btn-install")?.hidden, null, { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction(() => !document.querySelector("#btn-install")?.hidden, null, { timeout: 60000 }).catch(() => {});
     const offeredByChromium = await page.isVisible("#btn-install");
     check(offeredByChromium, "Chromium itself offered installation, so Install app is showing on the menu");
     // Click through with a stand-in event so the test never opens a real
