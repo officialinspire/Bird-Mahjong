@@ -64,16 +64,30 @@ export function skipIntro(key) {
  * context (the INSPIRE intro counts as already seen this session), since
  * only tools/verify-intro.mjs is about the intro; it passes { intro: true }.
  */
+export async function routeAnalytics(context) {
+  // Keep analytics requests inside QA while checking their anonymous payload.
+  await context.route("https://us.i.posthog.com/i/v0/e/", async (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      if (body?.properties?.game !== "Bird-Mahjong" || body?.properties?.$process_person_profile !== false) {
+        throw new Error("Unexpected analytics payload");
+      }
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", headers: {
+      "access-control-allow-origin": "*", "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "content-type",
+    }, body: '{"status":"Ok"}' });
+  });
+}
+
 export async function launchBrowser({ intro = false } = {}) {
   const browser = await chromium.launch(launchOptions());
-  if (!intro) {
-    const newContext = browser.newContext.bind(browser);
-    browser.newContext = async (...args) => {
-      const context = await newContext(...args);
-      await context.addInitScript(skipIntro, INTRO_SEEN_KEY);
-      return context;
-    };
-  }
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (...args) => {
+    const context = await newContext(...args);
+    await routeAnalytics(context);
+    if (!intro) await context.addInitScript(skipIntro, INTRO_SEEN_KEY);
+    return context;
+  };
   return browser;
 }
 

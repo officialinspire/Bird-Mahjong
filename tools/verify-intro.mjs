@@ -3,10 +3,10 @@
 //
 //   node tools/verify-intro.mjs
 //
-// Playwright's Chromium can't decode H.264, so for the "it plays" checks the
+// For the "it plays" checks the
 // intro MP4 is served as tools/fixtures/intro-test.webm (a 2.5s VP9/Opus cut
-// of the same video). Unrouted, the real MP4 exercises the playback-failure
-// path. Checks:
+// of the same video). Invalid media deterministically exercises the
+// unsupported-format path regardless of installed codecs. Checks:
 //   * the flow: Start → intro → Main Menu when the video ends; no music under
 //     the video, Gentle Canopy after it; the start tap can't also skip it
 //   * Skip (button and keys), ignored for a moment after the start tap
@@ -23,6 +23,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT, launchBrowser, serve } from "./lib/serve.mjs";
 import { SEED } from "./lib/play.mjs";
+import { MAX_MS } from "../js/ui/intro.js";
 
 const SETTINGS_KEY = "inspireBirdMahjong:v1:settings";
 const FIXTURE = fs.readFileSync(path.join(ROOT, "tools/fixtures/intro-test.webm"));
@@ -50,6 +51,7 @@ async function newContext(browser, { viewport = { width: 1280, height: 800 }, to
     if (!localStorage.getItem(k)) localStorage.setItem(k, v);
   }, [SETTINGS_KEY, JSON.stringify({ music: true, sfx: false, ...settings })]);
   if (video === "fixture") await context.route("**/inspiresoftwareintro.mp4", serveFixture);
+  else if (video === "unsupported") await context.route("**/inspiresoftwareintro.mp4", (r) => r.fulfill({ status: 200, contentType: "video/mp4", body: "unsupported media fixture" }));
   else if (video === "missing") await context.route("**/inspiresoftwareintro.mp4", (r) => r.fulfill({ status: 404, body: "" }));
   else if (video === "hang") await context.route("**/inspiresoftwareintro.mp4", () => { /* never answers */ });
   return context;
@@ -137,12 +139,12 @@ async function skipping(browser, url) {
 
 async function neverTrapped(browser, url) {
   for (const [video, label, within] of [
-    ["real", "the MP4 can't play here (unsupported codec)", 3000],
+    ["unsupported", "the media format cannot be decoded", 3000],
     ["missing", "the file is missing (404)", 3000],
     ["hang", "the file never loads", 6000],
   ]) {
     console.log(`intro: ${label}`);
-    const context = await newContext(browser, { video: video === "real" ? null : video });
+    const context = await newContext(browser, { video });
     const { page, errors } = await openPage(context, url);
     const t0 = Date.now();
     await page.click("#screen-start");
@@ -243,13 +245,13 @@ async function offline(browser, url) {
   await fresh.goto(`${url}?seed=${SEED}`, { waitUntil: "load" });
   const logo = await fresh.evaluate(() => document.querySelector("#screen-start .brand-logo").naturalWidth);
   check(logo > 0, "offline: the start screen and its logo load");
-  // The video comes from the cache (via a range request). This Chromium can't
-  // decode H.264, so from the cache it reaches the failure path: the check is
-  // that it was served offline (not a network error) and the menu follows.
+  // The real video comes from the cache (via a range request). Chromium
+  // may play it or reject its codec; either must reach the menu within the
+  // production intro maximum, without a network error.
   const videoResponses = [];
   fresh.on("response", (r) => { if (r.url().includes("inspiresoftwareintro.mp4")) videoResponses.push(r.status()); });
   await fresh.click("#screen-start");
-  await fresh.waitForFunction(() => document.body.dataset.screen === "menu", null, { timeout: 6000 });
+  await fresh.waitForFunction(() => document.body.dataset.screen === "menu", null, { timeout: MAX_MS + 2000 });
   check(videoResponses.length > 0 && videoResponses.every((s) => s === 200 || s === 206), `offline: the intro video is served from the cache (${videoResponses.join(", ")})`);
   check(true, "offline: Start → intro → menu");
   await fresh.click("#screen-menu [data-go=difficulty]");

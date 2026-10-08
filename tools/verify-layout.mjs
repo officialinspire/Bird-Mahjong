@@ -100,7 +100,7 @@ async function main() {
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("requestfailed", (r) => !isBenignFailure(r) && errors.push(`request failed: ${r.url()} ${r.failure()?.errorText}`));
       page.on("response", (r) => r.status() >= 400 && errors.push(`${r.status()} ${r.url()}`));
-      page.on("request", (r) => !r.url().startsWith(origin) && !r.url().startsWith("data:") && errors.push(`external request: ${r.url()}`));
+      page.on("request", (r) => !r.url().startsWith(origin) && !r.url().startsWith("data:") && r.url() !== "https://us.i.posthog.com/i/v0/e/" && errors.push(`external request: ${r.url()}`));
 
       await page.goto(`${url}?seed=${SEED}`, { waitUntil: "networkidle" });
       for (const step of screen.steps) {
