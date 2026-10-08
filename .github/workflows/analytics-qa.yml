@@ -26,5 +26,5 @@ jobs:
         env:
           BIRD_INSTALL_HEADED: "1"
       - name: Complete audio, intro and release checks even if PWA QA fails
-        if: ${{ !cancelled() }}
+        if: ${{ failure() && !cancelled() }}
         run: npm run test:music && npm run test:calls && npm run test:intro && npm run test:release
