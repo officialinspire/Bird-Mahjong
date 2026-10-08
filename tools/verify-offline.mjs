@@ -80,6 +80,9 @@ async function installability(url) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bird-mahjong-profile-"));
   const context = await chromium.launchPersistentContext(dir, {
     ...DESKTOP,
+    // Installation needs full Chromium, rather than the default headless shell.
+    channel: "chromium",
+    headless: process.env.BIRD_INSTALL_HEADED !== "1",
     ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
   });
   await routeAnalytics(context);
