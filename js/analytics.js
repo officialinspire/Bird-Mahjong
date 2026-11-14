@@ -1,4 +1,4 @@
-import { createAttribution } from './attribution.js';
+import { createAttribution } from "./attribution.js";
 /** Best-effort, anonymous game events. No SDK, storage, or network work on startup. */
 
 // A project token is public and can only send data; never put a personal API key here.
